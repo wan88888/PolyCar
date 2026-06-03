@@ -254,6 +254,11 @@ public sealed class CarGarage : MonoBehaviour
         {
             gameManager.SetPlayerCar(carController);
         }
+
+        if (levelManager != null)
+        {
+            levelManager.SetPlayerCar(carController);
+        }
     }
 
     private int FindCarIndex(string carId)

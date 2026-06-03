@@ -27,6 +27,9 @@ public sealed class GameManager : MonoBehaviour
     private bool driftHadCollision;
     private bool wasDrifting;
 
+    public int TotalDriftScore => Mathf.RoundToInt(totalDriftScore + currentDriftScore);
+    public float ComboMultiplier => comboMultiplier;
+
     private void Awake()
     {
         if (playerCar == null)
@@ -97,6 +100,17 @@ public sealed class GameManager : MonoBehaviour
         comboMultiplier = 1f;
         driftTimer = 0f;
         driftHadCollision = false;
+        wasDrifting = false;
+        UpdateDriftScoreText();
+    }
+
+    public void FlushActiveDrift()
+    {
+        if (currentDriftScore > 1f || wasDrifting)
+        {
+            FinishDriftScore();
+        }
+
         wasDrifting = false;
         UpdateDriftScoreText();
     }

@@ -4,6 +4,8 @@ using UnityEngine;
 [RequireComponent(typeof(Collider))]
 public sealed class ObstacleFeedback : MonoBehaviour
 {
+    private static readonly int ColorId = Shader.PropertyToID("_Color");
+
     [SerializeField, Min(0)] private int coinPenalty = 1;
     [SerializeField, Min(0.1f)] private float hitCooldown = 0.65f;
     [SerializeField, Min(1f)] private float pulseScale = 1.12f;
@@ -11,13 +13,18 @@ public sealed class ObstacleFeedback : MonoBehaviour
 
     private Renderer[] renderers;
     private Color[] normalColors;
+    private MaterialPropertyBlock propertyBlock;
     private Vector3 normalScale;
     private float nextHitTime;
+    private GameManager gameManager;
+    private LevelManager levelManager;
 
     private void Awake()
     {
         normalScale = transform.localScale;
         CacheRenderers();
+        gameManager = FindFirstObjectByType<GameManager>();
+        levelManager = FindFirstObjectByType<LevelManager>();
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -46,14 +53,22 @@ public sealed class ObstacleFeedback : MonoBehaviour
 
         nextHitTime = Time.time + hitCooldown;
 
-        GameManager gameManager = FindFirstObjectByType<GameManager>();
+        if (gameManager == null)
+        {
+            gameManager = FindFirstObjectByType<GameManager>();
+        }
+
         if (gameManager != null)
         {
             gameManager.RegisterObstacleHit(coinPenalty);
         }
         else
         {
-            LevelManager levelManager = FindFirstObjectByType<LevelManager>();
+            if (levelManager == null)
+            {
+                levelManager = FindFirstObjectByType<LevelManager>();
+            }
+
             if (levelManager != null)
             {
                 levelManager.RegisterObstacleHit(coinPenalty);
@@ -84,9 +99,10 @@ public sealed class ObstacleFeedback : MonoBehaviour
 
         renderers = GetComponentsInChildren<Renderer>(true);
         normalColors = new Color[renderers.Length];
+        propertyBlock = new MaterialPropertyBlock();
         for (int i = 0; i < renderers.Length; i++)
         {
-            Material material = renderers[i].material;
+            Material material = renderers[i].sharedMaterial;
             normalColors[i] = material.HasProperty("_Color") ? material.color : Color.white;
         }
     }
@@ -101,13 +117,9 @@ public sealed class ObstacleFeedback : MonoBehaviour
                 continue;
             }
 
-            Material material = renderers[i].material;
-            if (!material.HasProperty("_Color"))
-            {
-                continue;
-            }
-
-            material.color = color.HasValue ? color.Value : normalColors[i];
+            renderers[i].GetPropertyBlock(propertyBlock);
+            propertyBlock.SetColor(ColorId, color.HasValue ? color.Value : normalColors[i]);
+            renderers[i].SetPropertyBlock(propertyBlock);
         }
     }
 }

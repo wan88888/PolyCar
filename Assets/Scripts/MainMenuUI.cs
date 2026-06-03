@@ -1,20 +1,18 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 public sealed class MainMenuUI : MonoBehaviour
 {
-    private const string MusicEnabledKey = "PolyCar_MusicEnabled";
-    private const string SoundEnabledKey = "PolyCar_SoundEnabled";
-    private const string LastDailyClaimKey = "PolyCar_LastDailyClaim";
-
     [Header("Panels")]
     [SerializeField] private GameObject homePanel;
     [SerializeField] private GameObject shopPanel;
     [SerializeField] private GameObject rankPanel;
     [SerializeField] private GameObject levelSelectPanel;
     [SerializeField] private GameObject gameplayHudPanel;
+    [SerializeField] private GameObject completionPanel;
     [SerializeField] private GameObject settingsPopup;
     [SerializeField] private GameObject spinPopup;
     [SerializeField] private GameObject dailyPopup;
@@ -38,6 +36,15 @@ public sealed class MainMenuUI : MonoBehaviour
     [SerializeField] private Text[] levelMetaTexts;
     [SerializeField] private Text levelSelectStatusText;
     [SerializeField] private Button levelSelectBackButton;
+
+    [Header("Completion")]
+    [SerializeField] private Text completionTitleText;
+    [SerializeField] private Text completionStatsText;
+    [SerializeField] private Text completionBestText;
+    [SerializeField] private Button completionNextButton;
+    [SerializeField] private Button completionReplayButton;
+    [SerializeField] private Button completionHomeButton;
+    [SerializeField] private Button completionLevelSelectButton;
 
     [Header("Shop")]
     [SerializeField] private Button[] shopCarButtons;
@@ -66,9 +73,12 @@ public sealed class MainMenuUI : MonoBehaviour
     [SerializeField] private CarGarage carGarage;
     [SerializeField] private LevelManager levelManager;
     [SerializeField] private AudioManager audioManager;
+    [SerializeField] private CameraFollow cameraFollow;
+    [SerializeField] private CanvasGroup transitionFadeGroup;
 
     private bool spinUsedThisSession;
     private bool isGameplayActive;
+    private Coroutine transitionRoutine;
 
     private void Awake()
     {
@@ -86,13 +96,31 @@ public sealed class MainMenuUI : MonoBehaviour
         {
             audioManager = AudioManager.Instance != null ? AudioManager.Instance : FindFirstObjectByType<AudioManager>();
         }
+
+        if (cameraFollow == null)
+        {
+            cameraFollow = FindFirstObjectByType<CameraFollow>();
+        }
     }
 
     private void Start()
     {
         RegisterButtons();
+        if (levelManager != null)
+        {
+            levelManager.LevelCompleted += ShowCompletion;
+        }
+
         LoadSettings();
         ShowHome();
+    }
+
+    private void OnDestroy()
+    {
+        if (levelManager != null)
+        {
+            levelManager.LevelCompleted -= ShowCompletion;
+        }
     }
 
     private void RegisterButtons()
@@ -114,6 +142,10 @@ public sealed class MainMenuUI : MonoBehaviour
         AddClick(closeDailyButton, ClosePopups);
         AddClick(spinRewardButton, ClaimSpinReward);
         AddClick(claimDailyButton, ClaimDailyReward);
+        AddClick(completionNextButton, StartNextRouteFromCompletion);
+        AddClick(completionReplayButton, ReplayRouteFromCompletion);
+        AddClick(completionHomeButton, ShowHome);
+        AddClick(completionLevelSelectButton, ShowLevelSelect);
 
         if (musicToggle != null)
         {
@@ -160,6 +192,12 @@ public sealed class MainMenuUI : MonoBehaviour
             return;
         }
 
+        if (IsPanelOpen(completionPanel))
+        {
+            ShowLevelSelect();
+            return;
+        }
+
         if (isGameplayActive)
         {
             ShowHome();
@@ -181,8 +219,11 @@ public sealed class MainMenuUI : MonoBehaviour
         SetPanel(rankPanel, false);
         SetPanel(levelSelectPanel, false);
         SetPanel(gameplayHudPanel, false);
+        SetPanel(completionPanel, false);
+        SetMenuCamera(true);
         ClosePopups();
         RefreshAll();
+        PlayTransition();
     }
 
     public void ShowShop()
@@ -194,8 +235,11 @@ public sealed class MainMenuUI : MonoBehaviour
         SetPanel(rankPanel, false);
         SetPanel(levelSelectPanel, false);
         SetPanel(gameplayHudPanel, false);
+        SetPanel(completionPanel, false);
+        SetMenuCamera(true);
         ClosePopups();
         RefreshAll();
+        PlayTransition();
     }
 
     public void ShowRank()
@@ -207,8 +251,11 @@ public sealed class MainMenuUI : MonoBehaviour
         SetPanel(rankPanel, true);
         SetPanel(levelSelectPanel, false);
         SetPanel(gameplayHudPanel, false);
+        SetPanel(completionPanel, false);
+        SetMenuCamera(true);
         ClosePopups();
         RefreshAll();
+        PlayTransition();
     }
 
     public void ShowLevelSelect()
@@ -220,8 +267,11 @@ public sealed class MainMenuUI : MonoBehaviour
         SetPanel(rankPanel, false);
         SetPanel(levelSelectPanel, true);
         SetPanel(gameplayHudPanel, false);
+        SetPanel(completionPanel, false);
+        SetMenuCamera(true);
         ClosePopups();
         RefreshAll();
+        PlayTransition();
 
         if (levelSelectStatusText != null)
         {
@@ -239,7 +289,76 @@ public sealed class MainMenuUI : MonoBehaviour
         SetPanel(rankPanel, false);
         SetPanel(levelSelectPanel, false);
         SetPanel(gameplayHudPanel, true);
+        SetPanel(completionPanel, false);
+        SetMenuCamera(false);
         ClosePopups();
+        PlayTransition();
+    }
+
+    private void ShowCompletion(LevelManager.LevelCompletionData data)
+    {
+        Time.timeScale = 0f;
+        isGameplayActive = false;
+        SetPanel(homePanel, false);
+        SetPanel(shopPanel, false);
+        SetPanel(rankPanel, false);
+        SetPanel(levelSelectPanel, false);
+        SetPanel(gameplayHudPanel, true);
+        SetPanel(completionPanel, true);
+        SetMenuCamera(false);
+        ClosePopups();
+
+        if (completionTitleText != null)
+        {
+            completionTitleText.text = $"ROUTE {data.RouteIndex + 1} COMPLETE";
+        }
+
+        if (completionStatsText != null)
+        {
+            completionStatsText.text =
+                $"{data.RouteName}\n" +
+                $"Collected Coins: {data.CollectedCoins}\n" +
+                $"Drift Bonus: +{data.BonusCoins}\n" +
+                $"Obstacle Penalty: -{data.PenaltyCoins}\n" +
+                $"Drift Score: {data.DriftScore}\n" +
+                $"Total Coins: {data.TotalCoins}";
+        }
+
+        if (completionBestText != null)
+        {
+            string firstText = data.FirstCompletion ? "First clear" : "Replay clear";
+            string coinText = data.NewBestCoins ? "New coin best" : $"Best coins {data.BestCoins}";
+            string driftText = data.NewBestDrift ? "New drift best" : $"Best drift {data.BestDriftScore}";
+            completionBestText.text = $"{firstText} | {coinText} | {driftText}";
+        }
+
+        if (completionNextButton != null)
+        {
+            completionNextButton.interactable = data.HasNextRoute;
+        }
+
+        RefreshAll();
+        PlayTransition();
+    }
+
+    private void StartNextRouteFromCompletion()
+    {
+        if (levelManager != null)
+        {
+            levelManager.LoadNextLevel();
+        }
+
+        StartGame();
+    }
+
+    private void ReplayRouteFromCompletion()
+    {
+        if (levelManager != null)
+        {
+            levelManager.RestartCurrentLevel();
+        }
+
+        StartGame();
     }
 
     private void ShowSettingsPopup()
@@ -336,7 +455,7 @@ public sealed class MainMenuUI : MonoBehaviour
         }
 
         spinUsedThisSession = true;
-        int reward = UnityEngine.Random.Range(8, 26);
+        int reward = UnityEngine.Random.Range(GameBalance.SpinRewardMinCoins, GameBalance.SpinRewardMaxCoins + 1);
         SaveManager.AddCoins(reward);
 
         if (spinStatusText != null)
@@ -349,26 +468,25 @@ public sealed class MainMenuUI : MonoBehaviour
 
     private void ClaimDailyReward()
     {
-        string today = DateTime.Now.ToString("yyyyMMdd");
-        if (PlayerPrefs.GetString(LastDailyClaimKey, string.Empty) == today)
+        DateTime today = DateTime.Now;
+        if (SaveManager.HasClaimedDailyReward(today))
         {
             RefreshDailyPopup();
             return;
         }
 
-        PlayerPrefs.SetString(LastDailyClaimKey, today);
-        PlayerPrefs.Save();
-        SaveManager.AddCoins(20);
+        SaveManager.SetDailyRewardClaimed(today);
+        SaveManager.AddCoins(GameBalance.DailyRewardCoins);
         RefreshDailyPopup();
         RefreshAll();
     }
 
     private void RefreshDailyPopup()
     {
-        bool claimedToday = PlayerPrefs.GetString(LastDailyClaimKey, string.Empty) == DateTime.Now.ToString("yyyyMMdd");
+        bool claimedToday = SaveManager.HasClaimedDailyReward(DateTime.Now);
         if (dailyStatusText != null)
         {
-            dailyStatusText.text = claimedToday ? "Daily reward claimed" : "Claim today's +20 coin reward";
+            dailyStatusText.text = claimedToday ? "Daily reward claimed" : $"Claim today's +{GameBalance.DailyRewardCoins} coin reward";
         }
 
         if (claimDailyButton != null)
@@ -427,20 +545,25 @@ public sealed class MainMenuUI : MonoBehaviour
 
             bool unlocked = levelManager == null || levelManager.IsLevelUnlocked(i);
             bool selected = levelManager != null && i == levelManager.CurrentLevelIndex;
+            bool completed = SaveManager.IsRouteCompleted(i);
             SetLevelCardVisual(button, unlocked, selected);
 
             if (levelTitleTexts != null && i < levelTitleTexts.Length && levelTitleTexts[i] != null)
             {
                 string routeName = levelManager != null ? levelManager.GetLevelName(i) : $"Route {i + 1}";
-                levelTitleTexts[i].text = unlocked ? $"Route {i + 1}: {routeName}" : $"Route {i + 1}: Locked";
-                levelTitleTexts[i].color = selected ? new Color(1f, 0.74f, 0.22f) : Color.white;
+                string prefix = completed ? "Complete" : unlocked ? "Route" : "Locked";
+                levelTitleTexts[i].text = unlocked ? $"{prefix} {i + 1}: {routeName}" : $"Route {i + 1}: Locked";
+                levelTitleTexts[i].color = selected ? new Color(1f, 0.74f, 0.22f) : completed ? new Color(0.45f, 0.95f, 1f) : Color.white;
             }
 
             if (levelMetaTexts != null && i < levelMetaTexts.Length && levelMetaTexts[i] != null)
             {
                 int targetCoins = levelManager != null ? levelManager.GetLevelTargetCoins(i) : 0;
+                int bestCoins = SaveManager.GetBestRouteCoins(i);
                 levelMetaTexts[i].text = unlocked
-                    ? $"{targetCoins} coins objective"
+                    ? completed
+                        ? $"Best {bestCoins} coins | Target {targetCoins}"
+                        : $"{targetCoins} coins objective"
                     : $"Complete Route {i} to unlock";
                 levelMetaTexts[i].color = unlocked ? new Color(0.45f, 0.95f, 1f) : new Color(0.68f, 0.72f, 0.76f);
             }
@@ -495,13 +618,18 @@ public sealed class MainMenuUI : MonoBehaviour
             return;
         }
 
-        int currentRoute = levelManager != null ? levelManager.CurrentLevelIndex + 1 : 1;
+        int levelCount = levelManager != null ? levelManager.LevelCount : 10;
+        int bestRouteIndex = SaveManager.GetBestCompletedRouteIndex(levelCount);
+        int displayRoute = bestRouteIndex >= 0 ? bestRouteIndex + 1 : levelManager != null ? levelManager.CurrentLevelIndex + 1 : 1;
+        int bestCoins = bestRouteIndex >= 0 ? SaveManager.GetBestRouteCoins(bestRouteIndex) : 0;
+        int bestDrift = bestRouteIndex >= 0 ? SaveManager.GetBestRouteDriftScore(bestRouteIndex) : 0;
+        int completedRoutes = SaveManager.GetCompletedRouteCount(levelCount);
         rankListText.text =
-            $"01    YOU                         Route {currentRoute:00}\n\n" +
+            $"01    YOU                         Route {displayRoute:00}   {bestCoins} coins   {bestDrift} drift\n\n" +
             "02    Drift Ace                   Route 08\n\n" +
             "03    Cone Cutter                 Route 06\n\n" +
             "04    Night Runner                Route 05\n\n" +
-            "05    Rookie Racer                Route 03";
+            $"05    Progress                    {completedRoutes}/{levelCount} routes";
     }
 
     private static void SetShopCardVisual(Button button, bool unlocked, bool selected)
@@ -560,8 +688,8 @@ public sealed class MainMenuUI : MonoBehaviour
 
     private void LoadSettings()
     {
-        bool musicEnabled = PlayerPrefs.GetInt(MusicEnabledKey, 1) == 1;
-        bool soundEnabled = PlayerPrefs.GetInt(SoundEnabledKey, 1) == 1;
+        bool musicEnabled = SaveManager.MusicEnabled;
+        bool soundEnabled = SaveManager.SoundEnabled;
 
         if (musicToggle != null)
         {
@@ -587,8 +715,7 @@ public sealed class MainMenuUI : MonoBehaviour
 
     private void SetMusicEnabled(bool enabled)
     {
-        PlayerPrefs.SetInt(MusicEnabledKey, enabled ? 1 : 0);
-        PlayerPrefs.Save();
+        SaveManager.SetMusicEnabled(enabled);
         if (audioManager == null)
         {
             audioManager = AudioManager.Instance != null ? AudioManager.Instance : FindFirstObjectByType<AudioManager>();
@@ -607,8 +734,7 @@ public sealed class MainMenuUI : MonoBehaviour
 
     private void SetSoundEnabled(bool enabled)
     {
-        PlayerPrefs.SetInt(SoundEnabledKey, enabled ? 1 : 0);
-        PlayerPrefs.Save();
+        SaveManager.SetSoundEnabled(enabled);
         if (audioManager == null)
         {
             audioManager = AudioManager.Instance != null ? AudioManager.Instance : FindFirstObjectByType<AudioManager>();
@@ -635,6 +761,49 @@ public sealed class MainMenuUI : MonoBehaviour
                 action();
             });
         }
+    }
+
+    private void SetMenuCamera(bool active)
+    {
+        if (cameraFollow != null)
+        {
+            cameraFollow.SetMenuMode(active);
+        }
+    }
+
+    private void PlayTransition()
+    {
+        if (transitionFadeGroup == null)
+        {
+            return;
+        }
+
+        if (transitionRoutine != null)
+        {
+            StopCoroutine(transitionRoutine);
+        }
+
+        transitionRoutine = StartCoroutine(FadeTransition());
+    }
+
+    private IEnumerator FadeTransition()
+    {
+        transitionFadeGroup.gameObject.SetActive(true);
+        transitionFadeGroup.blocksRaycasts = true;
+        transitionFadeGroup.alpha = 0.72f;
+
+        const float duration = 0.22f;
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            transitionFadeGroup.alpha = Mathf.Lerp(0.72f, 0f, elapsed / duration);
+            yield return null;
+        }
+
+        transitionFadeGroup.alpha = 0f;
+        transitionFadeGroup.blocksRaycasts = false;
+        transitionRoutine = null;
     }
 
     private static void SetPanel(GameObject panel, bool active)

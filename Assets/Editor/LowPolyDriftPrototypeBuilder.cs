@@ -55,6 +55,7 @@ public static class LowPolyDriftPrototypeBuilder
         public GameObject RankPanel;
         public GameObject LevelSelectPanel;
         public GameObject GameplayHudPanel;
+        public GameObject CompletionPanel;
         public GameObject SettingsPopup;
         public GameObject SpinPopup;
         public GameObject DailyPopup;
@@ -72,6 +73,9 @@ public static class LowPolyDriftPrototypeBuilder
         public Button GameplayHomeButton;
         public Text ShopStatusText;
         public Text RankListText;
+        public Text CompletionTitleText;
+        public Text CompletionStatsText;
+        public Text CompletionBestText;
         public Text LevelSelectStatusText;
         public Text SettingsStatusText;
         public Text SpinStatusText;
@@ -87,6 +91,10 @@ public static class LowPolyDriftPrototypeBuilder
         public Button LevelSelectBackButton;
         public Button ShopBackButton;
         public Button RankBackButton;
+        public Button CompletionNextButton;
+        public Button CompletionReplayButton;
+        public Button CompletionHomeButton;
+        public Button CompletionLevelSelectButton;
         public Button CloseSettingsButton;
         public Button CloseSpinButton;
         public Button CloseDailyButton;
@@ -100,6 +108,7 @@ public static class LowPolyDriftPrototypeBuilder
         public Button[] LevelButtons;
         public Text[] LevelTitleTexts;
         public Text[] LevelMetaTexts;
+        public CanvasGroup TransitionFadeGroup;
     }
 
     [MenuItem("Tools/PolyCar/Create Drift Prototype Scene")]
@@ -230,7 +239,7 @@ public static class LowPolyDriftPrototypeBuilder
             levelManager,
             uiRefs.GarageText);
         AssignLevelGarage(levelManager, carGarage);
-        CreateMainMenuUI(uiRefs, carGarage, levelManager, audioManager);
+        CreateMainMenuUI(uiRefs, carGarage, levelManager, audioManager, cameraFollow);
         CreateEventSystem();
         CreateLighting();
 
@@ -1173,6 +1182,22 @@ public static class LowPolyDriftPrototypeBuilder
         ui.DailyStatusText = CreateText("DailyStatusText", ui.DailyPopup.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 25f), new Vector2(620f, 80f), "Claim today's +20 coin reward", 28, TextAnchor.MiddleCenter, new Color(0.45f, 0.95f, 1f));
         ui.ClaimDailyButton = CreateButton("ClaimDailyButton", ui.DailyPopup.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -100f), new Vector2(340f, 74f), "CLAIM", 30, new Color(0.38f, 0.82f, 0.23f), Color.white);
 
+        ui.CompletionPanel = CreateFullPanel("CompletionPanel", canvasObject.transform, new Color(0f, 0f, 0f, 0.62f), false, true);
+        GameObject completeCard = CreateRect("CompletionCard", ui.CompletionPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(840f, 620f), new Color(0.075f, 0.1f, 0.15f, 0.98f));
+        CreateRect("CompletionAccent", completeCard.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), Vector2.zero, new Vector2(840f, 7f), new Color(0.95f, 0.58f, 0.18f));
+        ui.CompletionTitleText = CreateText("CompletionTitleText", completeCard.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -58f), new Vector2(760f, 76f), "ROUTE COMPLETE", 46, TextAnchor.MiddleCenter, new Color(0.92f, 0.98f, 1f));
+        ui.CompletionStatsText = CreateText("CompletionStatsText", completeCard.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 58f), new Vector2(680f, 230f), "Stats", 28, TextAnchor.MiddleCenter, new Color(0.78f, 0.88f, 0.92f));
+        ui.CompletionBestText = CreateText("CompletionBestText", completeCard.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -112f), new Vector2(720f, 54f), "Best", 24, TextAnchor.MiddleCenter, new Color(0.45f, 0.95f, 1f));
+        ui.CompletionNextButton = CreateButton("CompletionNextButton", completeCard.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-220f, 36f), new Vector2(190f, 70f), "NEXT", 26, new Color(0.38f, 0.82f, 0.23f), Color.white);
+        ui.CompletionReplayButton = CreateButton("CompletionReplayButton", completeCard.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 36f), new Vector2(190f, 70f), "REPLAY", 26, new Color(0.1f, 0.58f, 0.75f), Color.white);
+        ui.CompletionLevelSelectButton = CreateButton("CompletionLevelSelectButton", completeCard.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(220f, 36f), new Vector2(190f, 70f), "ROUTES", 26, new Color(0.53f, 0.26f, 0.9f), Color.white);
+        ui.CompletionHomeButton = CreateButton("CompletionHomeButton", completeCard.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f), new Vector2(120f, 58f), "HOME", 22, new Color(0.22f, 0.25f, 0.34f), Color.white);
+
+        GameObject transitionFade = CreateFullPanel("TransitionFade", canvasObject.transform, new Color(0f, 0f, 0f, 0.72f), true, true);
+        ui.TransitionFadeGroup = transitionFade.AddComponent<CanvasGroup>();
+        ui.TransitionFadeGroup.alpha = 0f;
+        ui.TransitionFadeGroup.blocksRaycasts = false;
+
         return ui;
     }
 
@@ -1457,7 +1482,6 @@ public static class LowPolyDriftPrototypeBuilder
         SerializedProperty carsProperty = serializedGarage.FindProperty("cars");
         string[] ids = { "starter", "drift", "rally", "speed" };
         string[] names = { "Starter Car", "Drift Car", "Rally Car", "Speed Car" };
-        int[] costs = { 0, 10, 30, 60 };
         carsProperty.arraySize = carPrefabs.Length;
 
         for (int i = 0; i < carPrefabs.Length; i++)
@@ -1465,7 +1489,7 @@ public static class LowPolyDriftPrototypeBuilder
             SerializedProperty car = carsProperty.GetArrayElementAtIndex(i);
             car.FindPropertyRelative("id").stringValue = i < ids.Length ? ids[i] : $"car_{i + 1}";
             car.FindPropertyRelative("displayName").stringValue = i < names.Length ? names[i] : $"Car {i + 1}";
-            car.FindPropertyRelative("unlockCost").intValue = i < costs.Length ? costs[i] : 100;
+            car.FindPropertyRelative("unlockCost").intValue = GameBalance.GetCarUnlockCost(i);
             car.FindPropertyRelative("prefab").objectReferenceValue = carPrefabs[i];
         }
 
@@ -1479,7 +1503,7 @@ public static class LowPolyDriftPrototypeBuilder
         return garage;
     }
 
-    private static void CreateMainMenuUI(UiRefs ui, CarGarage carGarage, LevelManager levelManager, AudioManager audioManager)
+    private static void CreateMainMenuUI(UiRefs ui, CarGarage carGarage, LevelManager levelManager, AudioManager audioManager, CameraFollow cameraFollow)
     {
         GameObject menuObject = new GameObject("MainMenuUI");
         MainMenuUI menu = menuObject.AddComponent<MainMenuUI>();
@@ -1490,6 +1514,7 @@ public static class LowPolyDriftPrototypeBuilder
         serializedMenu.FindProperty("rankPanel").objectReferenceValue = ui.RankPanel;
         serializedMenu.FindProperty("levelSelectPanel").objectReferenceValue = ui.LevelSelectPanel;
         serializedMenu.FindProperty("gameplayHudPanel").objectReferenceValue = ui.GameplayHudPanel;
+        serializedMenu.FindProperty("completionPanel").objectReferenceValue = ui.CompletionPanel;
         serializedMenu.FindProperty("settingsPopup").objectReferenceValue = ui.SettingsPopup;
         serializedMenu.FindProperty("spinPopup").objectReferenceValue = ui.SpinPopup;
         serializedMenu.FindProperty("dailyPopup").objectReferenceValue = ui.DailyPopup;
@@ -1506,6 +1531,13 @@ public static class LowPolyDriftPrototypeBuilder
         serializedMenu.FindProperty("rankTabButton").objectReferenceValue = ui.RankTabButton;
         serializedMenu.FindProperty("levelSelectStatusText").objectReferenceValue = ui.LevelSelectStatusText;
         serializedMenu.FindProperty("levelSelectBackButton").objectReferenceValue = ui.LevelSelectBackButton;
+        serializedMenu.FindProperty("completionTitleText").objectReferenceValue = ui.CompletionTitleText;
+        serializedMenu.FindProperty("completionStatsText").objectReferenceValue = ui.CompletionStatsText;
+        serializedMenu.FindProperty("completionBestText").objectReferenceValue = ui.CompletionBestText;
+        serializedMenu.FindProperty("completionNextButton").objectReferenceValue = ui.CompletionNextButton;
+        serializedMenu.FindProperty("completionReplayButton").objectReferenceValue = ui.CompletionReplayButton;
+        serializedMenu.FindProperty("completionHomeButton").objectReferenceValue = ui.CompletionHomeButton;
+        serializedMenu.FindProperty("completionLevelSelectButton").objectReferenceValue = ui.CompletionLevelSelectButton;
         serializedMenu.FindProperty("shopStatusText").objectReferenceValue = ui.ShopStatusText;
         serializedMenu.FindProperty("shopBackButton").objectReferenceValue = ui.ShopBackButton;
         serializedMenu.FindProperty("rankListText").objectReferenceValue = ui.RankListText;
@@ -1523,6 +1555,8 @@ public static class LowPolyDriftPrototypeBuilder
         serializedMenu.FindProperty("carGarage").objectReferenceValue = carGarage;
         serializedMenu.FindProperty("levelManager").objectReferenceValue = levelManager;
         serializedMenu.FindProperty("audioManager").objectReferenceValue = audioManager;
+        serializedMenu.FindProperty("cameraFollow").objectReferenceValue = cameraFollow;
+        serializedMenu.FindProperty("transitionFadeGroup").objectReferenceValue = ui.TransitionFadeGroup;
         AssignObjectArray(serializedMenu.FindProperty("levelButtons"), ui.LevelButtons);
         AssignObjectArray(serializedMenu.FindProperty("levelTitleTexts"), ui.LevelTitleTexts);
         AssignObjectArray(serializedMenu.FindProperty("levelMetaTexts"), ui.LevelMetaTexts);

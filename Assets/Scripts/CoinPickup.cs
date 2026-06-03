@@ -3,6 +3,8 @@ using UnityEngine;
 [RequireComponent(typeof(Collider))]
 public sealed class CoinPickup : MonoBehaviour
 {
+    private static readonly int ColorId = Shader.PropertyToID("_Color");
+
     [SerializeField, Min(1)] private int value = 1;
     [SerializeField, Min(0f)] private float rotationSpeed = 150f;
     [SerializeField, Min(0f)] private float bobHeight = 0.18f;
@@ -13,6 +15,7 @@ public sealed class CoinPickup : MonoBehaviour
     private LevelManager levelManager;
     private Renderer[] renderers;
     private Color[] normalColors;
+    private MaterialPropertyBlock propertyBlock;
     private Vector3 normalScale;
     private Vector3 startPosition;
     private bool hasStartPosition;
@@ -95,11 +98,9 @@ public sealed class CoinPickup : MonoBehaviour
                 continue;
             }
 
-            Material material = renderers[i].material;
-            if (material.HasProperty("_Color"))
-            {
-                material.color = active ? highlightColor : normalColors[i];
-            }
+            renderers[i].GetPropertyBlock(propertyBlock);
+            propertyBlock.SetColor(ColorId, active ? highlightColor : normalColors[i]);
+            renderers[i].SetPropertyBlock(propertyBlock);
         }
     }
 
@@ -123,9 +124,10 @@ public sealed class CoinPickup : MonoBehaviour
 
         renderers = GetComponentsInChildren<Renderer>(true);
         normalColors = new Color[renderers.Length];
+        propertyBlock = new MaterialPropertyBlock();
         for (int i = 0; i < renderers.Length; i++)
         {
-            Material material = renderers[i].material;
+            Material material = renderers[i].sharedMaterial;
             normalColors[i] = material.HasProperty("_Color") ? material.color : Color.white;
         }
     }

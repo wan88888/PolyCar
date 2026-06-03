@@ -5,6 +5,23 @@ using UnityEngine.UI;
 
 public sealed class LevelManager : MonoBehaviour
 {
+    public struct LevelCompletionData
+    {
+        public int RouteIndex;
+        public string RouteName;
+        public int CollectedCoins;
+        public int BonusCoins;
+        public int PenaltyCoins;
+        public int DriftScore;
+        public int BestCoins;
+        public int BestDriftScore;
+        public int TotalCoins;
+        public bool FirstCompletion;
+        public bool NewBestCoins;
+        public bool NewBestDrift;
+        public bool HasNextRoute;
+    }
+
     [Serializable]
     public sealed class LevelDefinition
     {
@@ -36,6 +53,8 @@ public sealed class LevelManager : MonoBehaviour
     private int collectedCoins;
     private int activeTargetCoins = 10;
     private bool levelComplete;
+    private int bonusCoinsThisRun;
+    private int penaltyCoinsThisRun;
     private CoinPickup[] activeCoins = Array.Empty<CoinPickup>();
     private CoinPickup currentTargetCoin;
     private CarController playerCar;
@@ -45,6 +64,7 @@ public sealed class LevelManager : MonoBehaviour
     public bool LevelComplete => levelComplete;
     public int CurrentLevelIndex => currentLevelIndex;
     public int LevelCount => levels != null ? levels.Length : 0;
+    public event Action<LevelCompletionData> LevelCompleted;
 
     private void Awake()
     {
@@ -125,6 +145,7 @@ public sealed class LevelManager : MonoBehaviour
         }
 
         SaveManager.AddCoins(amount);
+        bonusCoinsThisRun += amount;
         SetMessage($"{reason}\nBonus +{amount} coins");
         UpdateUi();
     }
@@ -140,6 +161,7 @@ public sealed class LevelManager : MonoBehaviour
         if (paidPenalty > 0)
         {
             SaveManager.TrySpendCoins(paidPenalty);
+            penaltyCoinsThisRun += paidPenalty;
         }
 
         string penaltyText = paidPenalty > 0 ? $"Penalty -{paidPenalty} coins" : "No coins lost";
@@ -263,6 +285,8 @@ public sealed class LevelManager : MonoBehaviour
 
         LevelDefinition activeLevel = levels[currentLevelIndex];
         collectedCoins = 0;
+        bonusCoinsThisRun = 0;
+        penaltyCoinsThisRun = 0;
         levelComplete = false;
         if (gameManager == null)
         {
@@ -308,9 +332,17 @@ public sealed class LevelManager : MonoBehaviour
 
     private void CompleteLevel()
     {
+        if (gameManager != null)
+        {
+            gameManager.FlushActiveDrift();
+        }
+
         levelComplete = true;
         SaveManager.AddCoins(collectedCoins);
         SaveManager.UnlockRoute(currentLevelIndex);
+        int driftScore = gameManager != null ? gameManager.TotalDriftScore : 0;
+        int earnedCoins = collectedCoins + bonusCoinsThisRun;
+        SaveManager.RecordRouteResult(currentLevelIndex, earnedCoins, driftScore, out bool firstCompletion, out bool newBestCoins, out bool newBestDrift);
 
         int nextLevelIndex = currentLevelIndex + 1;
         bool unlockedNextRoute = nextLevelIndex < LevelCount;
@@ -325,6 +357,22 @@ public sealed class LevelManager : MonoBehaviour
 
         SetMessage($"{GetCurrentLevelName()} Complete\nReward +{collectedCoins} coins{nextRouteMessage}\nPress R to replay");
         SetGuidanceText("Route complete");
+        LevelCompleted?.Invoke(new LevelCompletionData
+        {
+            RouteIndex = currentLevelIndex,
+            RouteName = GetCurrentLevelName(),
+            CollectedCoins = collectedCoins,
+            BonusCoins = bonusCoinsThisRun,
+            PenaltyCoins = penaltyCoinsThisRun,
+            DriftScore = driftScore,
+            BestCoins = SaveManager.GetBestRouteCoins(currentLevelIndex),
+            BestDriftScore = SaveManager.GetBestRouteDriftScore(currentLevelIndex),
+            TotalCoins = SaveManager.TotalCoins,
+            FirstCompletion = firstCompletion,
+            NewBestCoins = newBestCoins,
+            NewBestDrift = newBestDrift,
+            HasNextRoute = unlockedNextRoute
+        });
     }
 
     private void UpdateUi()
@@ -490,5 +538,10 @@ public sealed class LevelManager : MonoBehaviour
             guidanceText.text = message;
             guidanceText.color = color;
         }
+    }
+
+    public void SetPlayerCar(CarController car)
+    {
+        playerCar = car;
     }
 }

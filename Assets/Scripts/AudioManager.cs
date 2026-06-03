@@ -4,8 +4,6 @@ public sealed class AudioManager : MonoBehaviour
 {
     public static AudioManager Instance { get; private set; }
 
-    private const string MusicEnabledKey = "PolyCar_MusicEnabled";
-    private const string SoundEnabledKey = "PolyCar_SoundEnabled";
     private const int SampleRate = 22050;
 
     [Header("Volumes")]
@@ -65,8 +63,7 @@ public sealed class AudioManager : MonoBehaviour
     public void SetMusicEnabled(bool enabled)
     {
         musicEnabled = enabled;
-        PlayerPrefs.SetInt(MusicEnabledKey, enabled ? 1 : 0);
-        PlayerPrefs.Save();
+        SaveManager.SetMusicEnabled(enabled);
         ApplyVolumes();
         PlayLoopsIfNeeded();
     }
@@ -74,8 +71,7 @@ public sealed class AudioManager : MonoBehaviour
     public void SetSoundEnabled(bool enabled)
     {
         soundEnabled = enabled;
-        PlayerPrefs.SetInt(SoundEnabledKey, enabled ? 1 : 0);
-        PlayerPrefs.Save();
+        SaveManager.SetSoundEnabled(enabled);
         ApplyVolumes();
         PlayLoopsIfNeeded();
     }
@@ -131,8 +127,8 @@ public sealed class AudioManager : MonoBehaviour
 
     private void LoadSettings()
     {
-        musicEnabled = PlayerPrefs.GetInt(MusicEnabledKey, 1) == 1;
-        soundEnabled = PlayerPrefs.GetInt(SoundEnabledKey, 1) == 1;
+        musicEnabled = SaveManager.MusicEnabled;
+        soundEnabled = SaveManager.SoundEnabled;
         ApplyVolumes();
     }
 
