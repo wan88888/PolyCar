@@ -65,6 +65,7 @@ public sealed class MainMenuUI : MonoBehaviour
     [Header("References")]
     [SerializeField] private CarGarage carGarage;
     [SerializeField] private LevelManager levelManager;
+    [SerializeField] private AudioManager audioManager;
 
     private bool spinUsedThisSession;
     private bool isGameplayActive;
@@ -79,6 +80,11 @@ public sealed class MainMenuUI : MonoBehaviour
         if (levelManager == null)
         {
             levelManager = FindFirstObjectByType<LevelManager>();
+        }
+
+        if (audioManager == null)
+        {
+            audioManager = AudioManager.Instance != null ? AudioManager.Instance : FindFirstObjectByType<AudioManager>();
         }
     }
 
@@ -566,12 +572,33 @@ public sealed class MainMenuUI : MonoBehaviour
         {
             soundToggle.SetIsOnWithoutNotify(soundEnabled);
         }
+
+        if (audioManager == null)
+        {
+            audioManager = AudioManager.Instance != null ? AudioManager.Instance : FindFirstObjectByType<AudioManager>();
+        }
+
+        if (audioManager != null)
+        {
+            audioManager.SetMusicEnabled(musicEnabled);
+            audioManager.SetSoundEnabled(soundEnabled);
+        }
     }
 
     private void SetMusicEnabled(bool enabled)
     {
         PlayerPrefs.SetInt(MusicEnabledKey, enabled ? 1 : 0);
         PlayerPrefs.Save();
+        if (audioManager == null)
+        {
+            audioManager = AudioManager.Instance != null ? AudioManager.Instance : FindFirstObjectByType<AudioManager>();
+        }
+
+        if (audioManager != null)
+        {
+            audioManager.SetMusicEnabled(enabled);
+        }
+
         if (settingsStatusText != null)
         {
             settingsStatusText.text = enabled ? "Music on" : "Music off";
@@ -582,6 +609,16 @@ public sealed class MainMenuUI : MonoBehaviour
     {
         PlayerPrefs.SetInt(SoundEnabledKey, enabled ? 1 : 0);
         PlayerPrefs.Save();
+        if (audioManager == null)
+        {
+            audioManager = AudioManager.Instance != null ? AudioManager.Instance : FindFirstObjectByType<AudioManager>();
+        }
+
+        if (audioManager != null)
+        {
+            audioManager.SetSoundEnabled(enabled);
+        }
+
         if (settingsStatusText != null)
         {
             settingsStatusText.text = enabled ? "Sound on" : "Sound off";
@@ -592,7 +629,11 @@ public sealed class MainMenuUI : MonoBehaviour
     {
         if (button != null)
         {
-            button.onClick.AddListener(action);
+            button.onClick.AddListener(() =>
+            {
+                AudioManager.Instance?.PlayButton();
+                action();
+            });
         }
     }
 

@@ -275,20 +275,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CarController
   readPlayerInput: 1
   inputSmoothing: 10
-  acceleration: 17
+  acceleration: 18
   reverseAcceleration: 10
-  maxForwardSpeed: 40
+  maxForwardSpeed: 43
   maxReverseSpeed: 12
-  steeringAcceleration: 4.2
+  steeringAcceleration: 4.7
   fullSteerSpeed: 16
   lowSpeedSteerFactor: 0.35
   brakeDeceleration: 28
   brakeSteerMultiplier: 0.75
-  driftStartSpeed: 9
+  driftStartSpeed: 8
   driftSteerThreshold: 0.55
-  normalLateralGrip: 7.5
-  driftLateralGrip: 1.25
-  driftSteeringMultiplier: 1.65
+  normalLateralGrip: 6.8
+  driftLateralGrip: 0.9
+  driftSteeringMultiplier: 1.85
   driftReleaseDelay: 0.35
   centerOfMassOffset: {x: 0, y: -0.45, z: 0}
   downforce: 4

@@ -56,6 +56,7 @@ public sealed class CarController : MonoBehaviour
     public bool IsDrifting => CurrentState == DriveState.Drift;
     public float SpeedKmh => PlanarVelocity.magnitude * 3.6f;
     public float ForwardSpeed => Vector3.Dot(body.linearVelocity, transform.forward);
+    public float LateralSpeed => Mathf.Abs(Vector3.Dot(body.linearVelocity, transform.right));
 
     private Vector3 PlanarVelocity => Vector3.ProjectOnPlane(body.linearVelocity, transform.up);
 

@@ -47,6 +47,18 @@ Route guidance:
 - Orange checkpoint marks sit under the coin path.
 - The current target coin is larger and cyan-highlighted.
 
+Drift scoring and feedback:
+
+- Clean high-speed drifts build `Drift Score` and raise the combo multiplier.
+- Ending a clean drift awards bonus total coins.
+- Hitting an obstacle breaks the drift combo and applies a small total-coin penalty when possible.
+- Barriers, cones, low blocks, and tire stacks now flash/pulse when hit.
+
+Audio:
+
+- Music, engine, drift, coin, button, crash, and drift-reward sounds are generated at runtime.
+- Music and Sound toggles in Settings now control the actual audio sources.
+
 - W / Up Arrow: accelerate
 - S / Down Arrow: reverse
 - A / D or Left / Right Arrow: steer
@@ -71,9 +83,9 @@ Gamepad driving is also supported:
 ```text
 Drive on the road
 -> collect all coins on the route
--> earn total coins
+-> drift cleanly for bonus coins and combo
+-> avoid obstacles to protect the combo
 -> unlock the next route
--> choose an unlocked route from Level Select, or press N after completion
 -> spend coins in Shop to unlock more cars
 ```
 
@@ -81,7 +93,7 @@ Drive on the road
 
 - Home: main entry screen with coin, settings, spin, daily, level, shop, and rank buttons.
 - Level Select: shows all 10 routes, lock state, selected state, and coin objective.
-- Gameplay HUD: shows speed, drift state, coin progress, total coins, route name, and next-coin guidance.
+- Gameplay HUD: shows speed, drift state, drift score/combo, coin progress, total coins, route name, and next-coin guidance.
 - Shop: shows the vehicle list and lets the player unlock cars with earned coins.
 - Rank: static leaderboard screen for the prototype.
 - Settings popup: Music and Sound toggles backed by `PlayerPrefs`.
@@ -142,7 +154,7 @@ Route 10: final narrow chaos route
   Obstacles: 42
 ```
 
-Obstacles are low-poly barriers and traffic cones placed along the route. They keep one side of the road open, so they add steering pressure without fully blocking the path.
+Obstacles are low-poly barriers, traffic cones, low blocks, and tire stacks placed along the route. They keep one side of the road open, so they add steering pressure without fully blocking the path. Hits flash the obstacle, play a crash sound, break drift combo, and apply a small total-coin penalty when the player has coins.
 
 ## Generated Assets
 
@@ -174,6 +186,7 @@ Assets/
 │   ├── MAT_Ground.mat
 │   └── MAT_Tire.mat
 └── Scripts/
+    ├── AudioManager.cs
     ├── CameraFollow.cs
     ├── CarController.cs
     ├── CarGarage.cs
@@ -181,6 +194,7 @@ Assets/
     ├── GameManager.cs
     ├── LevelManager.cs
     ├── MainMenuUI.cs
+    ├── ObstacleFeedback.cs
     └── SaveManager.cs
 ```
 
@@ -188,6 +202,7 @@ Assets/
 
 ```text
 DriftPrototype
+├── AudioManager
 ├── GameManager
 ├── LevelManager
 ├── CarGarage
@@ -233,12 +248,14 @@ Keep low-poly visual meshes under the `LowPolyVisuals` child. The car root shoul
 
 - `CarController`: Rigidbody acceleration, braking, steering, side grip, drift detection.
 - `CameraFollow`: third-person follow camera with smoothing and look-ahead.
-- `GameManager`: speed and drift UI.
+- `AudioManager`: runtime-generated music, engine, drift, coin, button, crash, and reward sounds.
+- `GameManager`: speed, drift state, drift score, combo multiplier, and clean-drift rewards.
 - `CoinPickup`: rotating/bobbing trigger pickup, resettable per route, with current-target highlight support.
-- `LevelManager`: multiple road routes, active map switching, coin objective, completion reward, route unlock checks, and next-coin guidance.
+- `LevelManager`: multiple road routes, active map switching, coin objective, completion reward, route unlock checks, next-coin guidance, drift bonus coins, and obstacle penalties.
 - `SaveManager`: PlayerPrefs-backed total coins, unlocked cars, selected car, selected route, and highest unlocked route.
 - `CarGarage`: car unlock, selection, and respawn at each route's spawn point.
 - `MainMenuUI`: Home, Shop, Rank, Settings, Spin, Daily, and gameplay HUD flow.
+- `ObstacleFeedback`: obstacle hit flash/pulse, crash feedback, combo break, and coin penalty trigger.
 
 ## Key Parameters
 
@@ -249,14 +266,29 @@ Keep low-poly visual meshes under the `LowPolyVisuals` child. The car root shoul
 - `guidanceText`: top-center HUD text that points toward the current target coin.
 - `guidanceColor` / `guidanceCloseColor`: HUD color states for normal and nearby target coins.
 
+`GameManager`
+
+- `scoreRate`: how quickly drift score accumulates from speed and side slip.
+- `minCleanDriftSeconds`: minimum drift duration before rewards can be earned.
+- `rewardScoreDivisor`: converts clean drift score into bonus coins.
+- `maxComboMultiplier`: upper limit for chained clean drifts.
+
+`AudioManager`
+
+- `musicVolume`: background music volume.
+- `soundVolume`: one-shot sound volume for coins, buttons, hits, and rewards.
+- `engineVolume`: looping engine volume driven by car speed.
+- `driftVolume`: looping tire-slip volume driven by lateral speed.
+
 `LowPolyDriftPrototypeBuilder`
 
 - `LevelSpec.RoadWidth`: generated road width per route.
 - `LevelSpec.RoutePoints`: route shape; edit these points to create new maps.
 - `LevelSpec.TargetCoins`: number of coins generated along a route.
-- `LevelSpec.ObstacleCount`: number of barriers/cones generated along a route.
+- `LevelSpec.ObstacleCount`: number of obstacles generated along a route.
 - `MAT_RouteGuide`: cyan road arrows showing driving direction.
 - `MAT_Checkpoint`: orange checkpoint marks under the coin path.
+- Obstacle generation alternates barriers, cones, low blocks, and tire stacks by route.
 
 `CarController`
 

@@ -27,6 +27,7 @@ public sealed class LevelManager : MonoBehaviour
 
     [Header("References")]
     [SerializeField] private CarGarage carGarage;
+    [SerializeField] private GameManager gameManager;
 
     [Header("Guidance")]
     [SerializeField] private Color guidanceColor = new Color(0.45f, 0.95f, 1f);
@@ -50,6 +51,11 @@ public sealed class LevelManager : MonoBehaviour
         if (carGarage == null)
         {
             carGarage = FindFirstObjectByType<CarGarage>();
+        }
+
+        if (gameManager == null)
+        {
+            gameManager = FindFirstObjectByType<GameManager>();
         }
     }
 
@@ -108,6 +114,36 @@ public sealed class LevelManager : MonoBehaviour
 
     public void RefreshTotalCoins()
     {
+        UpdateUi();
+    }
+
+    public void AwardBonusCoins(int amount, string reason)
+    {
+        if (amount <= 0 || levelComplete)
+        {
+            return;
+        }
+
+        SaveManager.AddCoins(amount);
+        SetMessage($"{reason}\nBonus +{amount} coins");
+        UpdateUi();
+    }
+
+    public void RegisterObstacleHit(int coinPenalty)
+    {
+        if (levelComplete)
+        {
+            return;
+        }
+
+        int paidPenalty = Mathf.Min(Mathf.Max(0, coinPenalty), SaveManager.TotalCoins);
+        if (paidPenalty > 0)
+        {
+            SaveManager.TrySpendCoins(paidPenalty);
+        }
+
+        string penaltyText = paidPenalty > 0 ? $"Penalty -{paidPenalty} coins" : "No coins lost";
+        SetMessage($"Obstacle hit\n{penaltyText}\nDrift combo broken");
         UpdateUi();
     }
 
@@ -228,6 +264,15 @@ public sealed class LevelManager : MonoBehaviour
         LevelDefinition activeLevel = levels[currentLevelIndex];
         collectedCoins = 0;
         levelComplete = false;
+        if (gameManager == null)
+        {
+            gameManager = FindFirstObjectByType<GameManager>();
+        }
+
+        if (gameManager != null)
+        {
+            gameManager.ResetRunFeedback();
+        }
 
         int coinCount = ResetCoins(activeLevel.root);
         activeTargetCoins = coinCount > 0

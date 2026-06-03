@@ -31,15 +31,18 @@
    - Add drift score and combo multiplier.
    - Reward clean drifts with bonus coins.
    - Tune each car so unlocks feel meaningfully different.
+   - Status: implemented.
 
 6. Collision and obstacle feedback
    - Add hit feedback when touching barriers/cones.
    - Add small time/coin penalties or combo break.
    - Add obstacle variation by route.
+   - Status: implemented.
 
 7. Audio and settings
    - Add engine, coin, button, crash, and drift sounds.
    - Wire Music/Sound toggles to actual audio mixers.
+   - Status: implemented.
 
 8. Save data and economy
    - Save completed routes, best coin totals, selected vehicle, unlocked vehicles, settings, and daily reward state.

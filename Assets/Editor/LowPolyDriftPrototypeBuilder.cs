@@ -60,6 +60,7 @@ public static class LowPolyDriftPrototypeBuilder
         public GameObject DailyPopup;
         public Text SpeedText;
         public Text DriftStateText;
+        public Text DriftScoreText;
         public Text GuidanceText;
         public Text LevelText;
         public Text CoinText;
@@ -152,15 +153,15 @@ public static class LowPolyDriftPrototypeBuilder
             new Vector3(1.35f, 0.45f, 1.2f),
             new CarTuning
             {
-                Acceleration = 17f,
+                Acceleration = 18f,
                 ReverseAcceleration = 10f,
-                MaxForwardSpeed = 40f,
+                MaxForwardSpeed = 43f,
                 MaxReverseSpeed = 12f,
-                SteeringAcceleration = 4.2f,
-                DriftStartSpeed = 9f,
-                NormalLateralGrip = 7.5f,
-                DriftLateralGrip = 1.25f,
-                DriftSteeringMultiplier = 1.65f
+                SteeringAcceleration = 4.7f,
+                DriftStartSpeed = 8f,
+                NormalLateralGrip = 6.8f,
+                DriftLateralGrip = 0.9f,
+                DriftSteeringMultiplier = 1.85f
             });
 
         GameObject rallyCarPrefab = CreateCarPrefab(
@@ -173,15 +174,15 @@ public static class LowPolyDriftPrototypeBuilder
             new Vector3(1.35f, 0.52f, 1.25f),
             new CarTuning
             {
-                Acceleration = 20f,
+                Acceleration = 19f,
                 ReverseAcceleration = 11f,
-                MaxForwardSpeed = 43f,
+                MaxForwardSpeed = 41f,
                 MaxReverseSpeed = 12f,
-                SteeringAcceleration = 3.8f,
-                DriftStartSpeed = 11f,
-                NormalLateralGrip = 10f,
-                DriftLateralGrip = 2.4f,
-                DriftSteeringMultiplier = 1.35f
+                SteeringAcceleration = 3.9f,
+                DriftStartSpeed = 12f,
+                NormalLateralGrip = 12.5f,
+                DriftLateralGrip = 3.1f,
+                DriftSteeringMultiplier = 1.15f
             });
 
         GameObject speedCarPrefab = CreateCarPrefab(
@@ -194,15 +195,15 @@ public static class LowPolyDriftPrototypeBuilder
             new Vector3(1.05f, 0.42f, 1.15f),
             new CarTuning
             {
-                Acceleration = 22f,
+                Acceleration = 25f,
                 ReverseAcceleration = 9f,
-                MaxForwardSpeed = 50f,
+                MaxForwardSpeed = 56f,
                 MaxReverseSpeed = 10f,
-                SteeringAcceleration = 3.1f,
-                DriftStartSpeed = 14f,
-                NormalLateralGrip = 8.5f,
-                DriftLateralGrip = 2f,
-                DriftSteeringMultiplier = 1.2f
+                SteeringAcceleration = 2.8f,
+                DriftStartSpeed = 16f,
+                NormalLateralGrip = 8f,
+                DriftLateralGrip = 1.8f,
+                DriftSteeringMultiplier = 1.25f
             });
 
         GameObject coinPrefab = CreateCoinPrefab(coinMaterial);
@@ -213,12 +214,13 @@ public static class LowPolyDriftPrototypeBuilder
         RenderSettings.ambientLight = new Color(0.62f, 0.68f, 0.72f);
 
         CreateGround(groundMaterial);
-        BuiltLevel[] builtLevels = CreateRoadLevels(coinPrefab, roadMaterial, curbMaterial, routeGuideMaterial, checkpointMaterial, barrierMaterial, coneMaterial);
+        BuiltLevel[] builtLevels = CreateRoadLevels(coinPrefab, roadMaterial, curbMaterial, routeGuideMaterial, checkpointMaterial, barrierMaterial, coneMaterial, tireMaterial);
         CameraFollow cameraFollow = CreateCamera();
         UiRefs uiRefs = CreateCanvas();
 
-        GameManager gameManager = CreateGameManager(uiRefs.SpeedText, uiRefs.DriftStateText);
-        LevelManager levelManager = CreateLevelManager(builtLevels, uiRefs.LevelText, uiRefs.CoinText, uiRefs.TotalCoinsText, uiRefs.MessageText, uiRefs.GuidanceText);
+        AudioManager audioManager = CreateAudioManager();
+        GameManager gameManager = CreateGameManager(uiRefs.SpeedText, uiRefs.DriftStateText, uiRefs.DriftScoreText, audioManager);
+        LevelManager levelManager = CreateLevelManager(builtLevels, uiRefs.LevelText, uiRefs.CoinText, uiRefs.TotalCoinsText, uiRefs.MessageText, uiRefs.GuidanceText, gameManager);
         Transform initialSpawn = builtLevels.Length > 0 ? builtLevels[0].SpawnPoint : null;
         CarGarage carGarage = CreateCarGarage(
             new[] { starterCarPrefab, driftCarPrefab, rallyCarPrefab, speedCarPrefab },
@@ -228,7 +230,7 @@ public static class LowPolyDriftPrototypeBuilder
             levelManager,
             uiRefs.GarageText);
         AssignLevelGarage(levelManager, carGarage);
-        CreateMainMenuUI(uiRefs, carGarage, levelManager);
+        CreateMainMenuUI(uiRefs, carGarage, levelManager, audioManager);
         CreateEventSystem();
         CreateLighting();
 
@@ -407,7 +409,8 @@ public static class LowPolyDriftPrototypeBuilder
         Material routeGuideMaterial,
         Material checkpointMaterial,
         Material barrierMaterial,
-        Material coneMaterial)
+        Material coneMaterial,
+        Material tireMaterial)
     {
         GameObject mapsRoot = new GameObject("LevelMaps");
         LevelSpec[] specs =
@@ -636,7 +639,7 @@ public static class LowPolyDriftPrototypeBuilder
         List<BuiltLevel> levels = new List<BuiltLevel>();
         for (int i = 0; i < specs.Length; i++)
         {
-            BuiltLevel builtLevel = CreateRoadLevel(i, specs[i], coinPrefab, roadMaterial, curbMaterial, routeGuideMaterial, checkpointMaterial, barrierMaterial, coneMaterial, mapsRoot.transform);
+            BuiltLevel builtLevel = CreateRoadLevel(i, specs[i], coinPrefab, roadMaterial, curbMaterial, routeGuideMaterial, checkpointMaterial, barrierMaterial, coneMaterial, tireMaterial, mapsRoot.transform);
             builtLevel.Root.gameObject.SetActive(i == 0);
             levels.Add(builtLevel);
         }
@@ -654,6 +657,7 @@ public static class LowPolyDriftPrototypeBuilder
         Material checkpointMaterial,
         Material barrierMaterial,
         Material coneMaterial,
+        Material tireMaterial,
         Transform parent)
     {
         GameObject levelRoot = new GameObject($"Level_{index + 1:00}_{spec.DisplayName.Replace(" ", string.Empty).Replace("-", string.Empty)}");
@@ -679,7 +683,7 @@ public static class LowPolyDriftPrototypeBuilder
 
         CreateRouteCoins(spec.RoutePoints, spec.TargetCoins, coinPrefab, coinsRoot.transform);
         CreateRouteGuides(spec.RoutePoints, spec.TargetCoins, spec.RoadWidth, routeGuideMaterial, checkpointMaterial, guidanceRoot.transform);
-        CreateRouteObstacles(spec.RoutePoints, spec.ObstacleCount, spec.RoadWidth, barrierMaterial, coneMaterial, obstaclesRoot.transform);
+        CreateRouteObstacles(index, spec.RoutePoints, spec.ObstacleCount, spec.RoadWidth, barrierMaterial, coneMaterial, tireMaterial, obstaclesRoot.transform);
         CreateStartGate(levelRoot.transform, spec.RoutePoints, spec.RoadWidth, curbMaterial);
 
         return new BuiltLevel
@@ -814,11 +818,13 @@ public static class LowPolyDriftPrototypeBuilder
     }
 
     private static void CreateRouteObstacles(
+        int routeIndex,
         Vector3[] routePoints,
         int obstacleCount,
         float roadWidth,
         Material barrierMaterial,
         Material coneMaterial,
+        Material tireMaterial,
         Transform parent)
     {
         if (obstacleCount <= 0)
@@ -835,26 +841,46 @@ public static class LowPolyDriftPrototypeBuilder
             Vector3 right = routeRotation * Vector3.right;
             float side = i % 2 == 0 ? 1f : -1f;
 
-            if (i % 3 == 0)
+            int pattern = (i + routeIndex) % 5;
+            if (pattern == 0)
             {
                 Vector3 barrierPosition = routePosition + right * side * (roadWidth * 0.22f) + Vector3.up * 0.33f;
-                CreateBox(
+                GameObject barrier = CreateBox(
                     $"Barrier_{i + 1:00}",
                     parent,
                     barrierPosition,
                     routeRotation,
-                    new Vector3(roadWidth * 0.34f, 0.62f, 0.32f),
+                    new Vector3(roadWidth * 0.34f, 0.62f + routeIndex * 0.01f, 0.32f),
                     barrierMaterial);
+                AttachObstacleFeedback(barrier, 2, new Color(1f, 0.42f, 0.18f), 1.1f);
+            }
+            else if (pattern == 1 || pattern == 2)
+            {
+                Vector3 conePosition = routePosition + right * side * (roadWidth * 0.28f) + Vector3.up * 0.35f;
+                GameObject cone = CreateTrafficCone($"Cone_{i + 1:00}", parent, conePosition, routeRotation, coneMaterial);
+                AttachObstacleFeedback(cone, 1, new Color(1f, 0.74f, 0.22f), 1.16f);
+            }
+            else if (pattern == 3)
+            {
+                Vector3 tirePosition = routePosition + right * side * (roadWidth * 0.24f) + Vector3.up * 0.18f;
+                CreateTireStack($"TireStack_{i + 1:00}", parent, tirePosition, routeRotation, tireMaterial);
             }
             else
             {
-                Vector3 conePosition = routePosition + right * side * (roadWidth * 0.28f) + Vector3.up * 0.35f;
-                CreateTrafficCone($"Cone_{i + 1:00}", parent, conePosition, routeRotation, coneMaterial);
+                Vector3 blockPosition = routePosition + right * side * (roadWidth * 0.18f) + Vector3.up * 0.18f;
+                GameObject block = CreateBox(
+                    $"LowBlock_{i + 1:00}",
+                    parent,
+                    blockPosition,
+                    routeRotation,
+                    new Vector3(roadWidth * 0.26f, 0.32f, 0.85f),
+                    barrierMaterial);
+                AttachObstacleFeedback(block, 1, new Color(1f, 0.55f, 0.24f), 1.12f);
             }
         }
     }
 
-    private static void CreateTrafficCone(string name, Transform parent, Vector3 position, Quaternion rotation, Material material)
+    private static GameObject CreateTrafficCone(string name, Transform parent, Vector3 position, Quaternion rotation, Material material)
     {
         GameObject cone = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         cone.name = name;
@@ -870,6 +896,36 @@ public static class LowPolyDriftPrototypeBuilder
         cap.transform.localScale = new Vector3(0.42f, 0.08f, 0.42f);
         cap.GetComponent<Renderer>().sharedMaterial = material;
         Object.DestroyImmediate(cap.GetComponent<Collider>());
+        return cone;
+    }
+
+    private static void CreateTireStack(string name, Transform parent, Vector3 position, Quaternion rotation, Material material)
+    {
+        GameObject root = new GameObject(name);
+        root.transform.SetParent(parent);
+        root.transform.SetPositionAndRotation(position, rotation);
+
+        for (int i = 0; i < 3; i++)
+        {
+            GameObject tire = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            tire.name = $"Tire_{i + 1:00}";
+            tire.transform.SetParent(root.transform);
+            tire.transform.SetPositionAndRotation(position + Vector3.up * (0.22f * i), rotation);
+            tire.transform.localScale = new Vector3(0.52f, 0.14f, 0.52f);
+            tire.GetComponent<Renderer>().sharedMaterial = material;
+            AttachObstacleFeedback(tire, 2, new Color(0.45f, 0.95f, 1f), 1.1f);
+        }
+    }
+
+    private static void AttachObstacleFeedback(GameObject obstacle, int coinPenalty, Color flashColor, float pulseScale)
+    {
+        if (obstacle == null)
+        {
+            return;
+        }
+
+        ObstacleFeedback feedback = obstacle.AddComponent<ObstacleFeedback>();
+        feedback.Configure(coinPenalty, flashColor, pulseScale);
     }
 
     private static void CreateStartGate(Transform levelRoot, Vector3[] routePoints, float roadWidth, Material material)
@@ -983,6 +1039,7 @@ public static class LowPolyDriftPrototypeBuilder
         ui.SpeedText = CreateText("SpeedText", ui.GameplayHudPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -24f), new Vector2(300f, 44f), "0 km/h", 34, TextAnchor.UpperLeft);
         ui.DriftStateText = CreateText("DriftStateText", ui.GameplayHudPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -68f), new Vector2(300f, 34f), "Normal", 24, TextAnchor.UpperLeft);
         ui.GuidanceText = CreateText("GuidanceText", ui.GameplayHudPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -26f), new Vector2(620f, 46f), "Next Coin: ready", 30, TextAnchor.UpperCenter, new Color(0.45f, 0.95f, 1f));
+        ui.DriftScoreText = CreateText("DriftScoreText", ui.GameplayHudPanel.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -132f), new Vector2(620f, 80f), "Drift Score: 0\nCombo x1.0", 24, TextAnchor.UpperRight, new Color(0.92f, 0.96f, 1f));
         ui.LevelText = CreateText("LevelText", ui.GameplayHudPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -106f), new Vector2(560f, 34f), "Route 1/10", 24, TextAnchor.UpperLeft);
         ui.CoinText = CreateText("CoinText", ui.GameplayHudPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -144f), new Vector2(300f, 34f), "Coins: 0 / 10", 24, TextAnchor.UpperLeft);
         ui.TotalCoinsText = CreateText("TotalCoinsText", ui.GameplayHudPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -182f), new Vector2(360f, 34f), "Total Coins: 0", 24, TextAnchor.UpperLeft);
@@ -1331,7 +1388,13 @@ public static class LowPolyDriftPrototypeBuilder
         return text;
     }
 
-    private static GameManager CreateGameManager(Text speedText, Text driftStateText)
+    private static AudioManager CreateAudioManager()
+    {
+        GameObject audioObject = new GameObject("AudioManager");
+        return audioObject.AddComponent<AudioManager>();
+    }
+
+    private static GameManager CreateGameManager(Text speedText, Text driftStateText, Text driftScoreText, AudioManager audioManager)
     {
         GameObject managerObject = new GameObject("GameManager");
         GameManager manager = managerObject.AddComponent<GameManager>();
@@ -1339,11 +1402,13 @@ public static class LowPolyDriftPrototypeBuilder
         SerializedObject serializedManager = new SerializedObject(manager);
         serializedManager.FindProperty("speedText").objectReferenceValue = speedText;
         serializedManager.FindProperty("driftStateText").objectReferenceValue = driftStateText;
+        serializedManager.FindProperty("driftScoreText").objectReferenceValue = driftScoreText;
+        serializedManager.FindProperty("audioManager").objectReferenceValue = audioManager;
         serializedManager.ApplyModifiedPropertiesWithoutUndo();
         return manager;
     }
 
-    private static LevelManager CreateLevelManager(BuiltLevel[] builtLevels, Text levelText, Text coinText, Text totalCoinsText, Text messageText, Text guidanceText)
+    private static LevelManager CreateLevelManager(BuiltLevel[] builtLevels, Text levelText, Text coinText, Text totalCoinsText, Text messageText, Text guidanceText, GameManager gameManager)
     {
         GameObject levelObject = new GameObject("LevelManager");
         LevelManager levelManager = levelObject.AddComponent<LevelManager>();
@@ -1367,6 +1432,7 @@ public static class LowPolyDriftPrototypeBuilder
         serializedLevel.FindProperty("totalCoinsText").objectReferenceValue = totalCoinsText;
         serializedLevel.FindProperty("messageText").objectReferenceValue = messageText;
         serializedLevel.FindProperty("guidanceText").objectReferenceValue = guidanceText;
+        serializedLevel.FindProperty("gameManager").objectReferenceValue = gameManager;
         serializedLevel.ApplyModifiedPropertiesWithoutUndo();
         return levelManager;
     }
@@ -1413,7 +1479,7 @@ public static class LowPolyDriftPrototypeBuilder
         return garage;
     }
 
-    private static void CreateMainMenuUI(UiRefs ui, CarGarage carGarage, LevelManager levelManager)
+    private static void CreateMainMenuUI(UiRefs ui, CarGarage carGarage, LevelManager levelManager, AudioManager audioManager)
     {
         GameObject menuObject = new GameObject("MainMenuUI");
         MainMenuUI menu = menuObject.AddComponent<MainMenuUI>();
@@ -1456,6 +1522,7 @@ public static class LowPolyDriftPrototypeBuilder
         serializedMenu.FindProperty("closeDailyButton").objectReferenceValue = ui.CloseDailyButton;
         serializedMenu.FindProperty("carGarage").objectReferenceValue = carGarage;
         serializedMenu.FindProperty("levelManager").objectReferenceValue = levelManager;
+        serializedMenu.FindProperty("audioManager").objectReferenceValue = audioManager;
         AssignObjectArray(serializedMenu.FindProperty("levelButtons"), ui.LevelButtons);
         AssignObjectArray(serializedMenu.FindProperty("levelTitleTexts"), ui.LevelTitleTexts);
         AssignObjectArray(serializedMenu.FindProperty("levelMetaTexts"), ui.LevelMetaTexts);

@@ -64,6 +64,7 @@ public sealed class CoinPickup : MonoBehaviour
             levelManager.CollectCoin(this);
         }
 
+        AudioManager.Instance?.PlayCoin();
         gameObject.SetActive(false);
     }
 
