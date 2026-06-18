@@ -59,6 +59,13 @@ Audio:
 - Music, engine, drift, coin, button, crash, and drift-reward sounds are generated at runtime.
 - Music and Sound toggles in Settings now control the actual audio sources.
 
+Save and economy:
+
+- `SaveManager` persists total coins, unlocked cars, selected car, selected route, highest unlocked route, completed routes, best route coin totals, best route drift scores, audio settings, and daily reward claim date.
+- Car unlock costs are centralized in `GameBalance`: Starter 0, Drift 30, Rally 75, Speed 140.
+- Route best coins use net run earnings: collected coins + drift bonus - actual obstacle penalties.
+- Daily reward gives +20 coins once per calendar day. Spin reward gives a small random coin bonus once per play session.
+
 - W / Up Arrow: accelerate
 - S / Down Arrow: reverse
 - A / D or Left / Right Arrow: steer
@@ -95,10 +102,22 @@ Drive on the road
 - Level Select: shows all 10 routes, lock state, selected state, and coin objective.
 - Gameplay HUD: shows speed, drift state, drift score/combo, coin progress, total coins, route name, and next-coin guidance.
 - Shop: shows the vehicle list and lets the player unlock cars with earned coins.
-- Rank: static leaderboard screen for the prototype.
+- Rank: prototype leaderboard showing the player's best completed route, best route coins, best drift score, and completion progress.
+- Completion: appears after each route, shows collected coins, drift bonus, obstacle penalty, net run earnings, drift score, best records, and buttons for next route, replay, route select, or Home.
 - Settings popup: Music and Sound toggles backed by `PlayerPrefs`.
 - Spin popup: one spin reward per session.
 - Daily popup: daily +20 coin reward, claimable once per calendar day.
+
+Presentation polish:
+
+- Home, Shop, Rank, Level Select, Gameplay, and Completion use a short fade transition.
+- The camera enters a slower menu orbit while the game is paused on menu screens, then returns to third-person follow during gameplay.
+
+Performance and structure:
+
+- Coin highlighting and obstacle hit flashes use `MaterialPropertyBlock`, so runtime feedback does not clone shared materials.
+- Obstacle feedback caches manager references after startup and only refreshes them if needed.
+- Economy values live in `GameBalance` instead of being duplicated across UI and generation code.
 
 ## Difficulty Curve
 
@@ -191,6 +210,7 @@ Assets/
     ├── CarController.cs
     ├── CarGarage.cs
     ├── CoinPickup.cs
+    ├── GameBalance.cs
     ├── GameManager.cs
     ├── LevelManager.cs
     ├── MainMenuUI.cs
@@ -228,7 +248,9 @@ DriftPrototype
     ├── RankPanel
     ├── SettingsPopup
     ├── SpinPopup
-    └── DailyPopup
+    ├── DailyPopup
+    ├── CompletionPanel
+    └── TransitionFade
 ```
 
 `LevelManager` activates only the current route, resets that route's coins, and tells `CarGarage` which spawn point to use. `CarGarage` spawns the selected vehicle prefab at the active route's `PlayerSpawnPoint`.
@@ -248,13 +270,14 @@ Keep low-poly visual meshes under the `LowPolyVisuals` child. The car root shoul
 
 - `CarController`: Rigidbody acceleration, braking, steering, side grip, drift detection.
 - `CameraFollow`: third-person follow camera with smoothing and look-ahead.
+- `GameBalance`: centralized economy constants for rewards, penalties, and car unlock costs.
 - `AudioManager`: runtime-generated music, engine, drift, coin, button, crash, and reward sounds.
 - `GameManager`: speed, drift state, drift score, combo multiplier, and clean-drift rewards.
 - `CoinPickup`: rotating/bobbing trigger pickup, resettable per route, with current-target highlight support.
-- `LevelManager`: multiple road routes, active map switching, coin objective, completion reward, route unlock checks, next-coin guidance, drift bonus coins, and obstacle penalties.
-- `SaveManager`: PlayerPrefs-backed total coins, unlocked cars, selected car, selected route, and highest unlocked route.
+- `LevelManager`: multiple road routes, active map switching, coin objective, net completion result, route unlock checks, next-coin guidance, drift bonus coins, and obstacle penalties.
+- `SaveManager`: PlayerPrefs-backed total coins, unlocked cars, selected car, selected route, highest unlocked route, completed route flags, best route records, settings, and daily reward state.
 - `CarGarage`: car unlock, selection, and respawn at each route's spawn point.
-- `MainMenuUI`: Home, Shop, Rank, Settings, Spin, Daily, and gameplay HUD flow.
+- `MainMenuUI`: Home, Shop, Rank, Level Select, Settings, Spin, Daily, gameplay HUD, transitions, and completion flow.
 - `ObstacleFeedback`: obstacle hit flash/pulse, crash feedback, combo break, and coin penalty trigger.
 
 ## Key Parameters
@@ -280,6 +303,19 @@ Keep low-poly visual meshes under the `LowPolyVisuals` child. The car root shoul
 - `engineVolume`: looping engine volume driven by car speed.
 - `driftVolume`: looping tire-slip volume driven by lateral speed.
 
+`GameBalance`
+
+- `DailyRewardCoins`: daily check-in reward.
+- `SpinRewardMinCoins` / `SpinRewardMaxCoins`: per-session spin reward range.
+- `LightObstaclePenaltyCoins` / `HeavyObstaclePenaltyCoins`: obstacle penalty values used by generated maps.
+- `GetCarUnlockCost`: central source for car prices.
+
+`MainMenuUI`
+
+- `completionPanel`: route-complete overlay with next, replay, route select, and Home actions.
+- `transitionFadeGroup`: full-screen fade overlay used when changing major screens.
+- `cameraFollow`: toggled into menu orbit mode on paused menu screens.
+
 `LowPolyDriftPrototypeBuilder`
 
 - `LevelSpec.RoadWidth`: generated road width per route.
@@ -300,5 +336,5 @@ Keep low-poly visual meshes under the `LowPolyVisuals` child. The car root shoul
 
 `CarGarage`
 
-- `unlockCost`: total coins needed to unlock a car. Drift, Rally, and Speed cars cost 10, 30, and 60.
+- `unlockCost`: total coins needed to unlock a car. Drift, Rally, and Speed cars cost 30, 75, and 140.
 - `prefab`: vehicle prefab to spawn when the car is selected.

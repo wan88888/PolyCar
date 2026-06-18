@@ -12,6 +12,7 @@ public sealed class LevelManager : MonoBehaviour
         public int CollectedCoins;
         public int BonusCoins;
         public int PenaltyCoins;
+        public int EarnedCoins;
         public int DriftScore;
         public int BestCoins;
         public int BestDriftScore;
@@ -341,7 +342,7 @@ public sealed class LevelManager : MonoBehaviour
         SaveManager.AddCoins(collectedCoins);
         SaveManager.UnlockRoute(currentLevelIndex);
         int driftScore = gameManager != null ? gameManager.TotalDriftScore : 0;
-        int earnedCoins = collectedCoins + bonusCoinsThisRun;
+        int earnedCoins = Mathf.Max(0, collectedCoins + bonusCoinsThisRun - penaltyCoinsThisRun);
         SaveManager.RecordRouteResult(currentLevelIndex, earnedCoins, driftScore, out bool firstCompletion, out bool newBestCoins, out bool newBestDrift);
 
         int nextLevelIndex = currentLevelIndex + 1;
@@ -364,6 +365,7 @@ public sealed class LevelManager : MonoBehaviour
             CollectedCoins = collectedCoins,
             BonusCoins = bonusCoinsThisRun,
             PenaltyCoins = penaltyCoinsThisRun,
+            EarnedCoins = earnedCoins,
             DriftScore = driftScore,
             BestCoins = SaveManager.GetBestRouteCoins(currentLevelIndex),
             BestDriftScore = SaveManager.GetBestRouteDriftScore(currentLevelIndex),

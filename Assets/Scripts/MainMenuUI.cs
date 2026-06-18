@@ -320,6 +320,7 @@ public sealed class MainMenuUI : MonoBehaviour
                 $"Collected Coins: {data.CollectedCoins}\n" +
                 $"Drift Bonus: +{data.BonusCoins}\n" +
                 $"Obstacle Penalty: -{data.PenaltyCoins}\n" +
+                $"Run Earnings: {data.EarnedCoins}\n" +
                 $"Drift Score: {data.DriftScore}\n" +
                 $"Total Coins: {data.TotalCoins}";
         }

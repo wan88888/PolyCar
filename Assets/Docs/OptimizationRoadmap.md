@@ -47,15 +47,19 @@
 8. Save data and economy
    - Save completed routes, best coin totals, selected vehicle, unlocked vehicles, settings, and daily reward state.
    - Balance car prices against total coin rewards.
+   - Status: implemented.
 
 9. Performance and maintainability
    - Move procedural UI and level data toward reusable prefabs or ScriptableObjects.
    - Avoid generating large UI hierarchies by code once visual direction stabilizes.
+   - Runtime cleanup: centralized economy constants, cached manager references, and material property blocks for feedback visuals.
+   - Status: implemented.
 
 10. Presentation polish
     - Add camera intro on Home.
     - Add transitions between Home, Shop, Rank, and gameplay.
     - Add completion screen after each route.
+    - Status: implemented.
 
 ## Implementation Order
 
@@ -68,4 +72,7 @@ Menu/game-state flow
 -> route guidance
 -> drift scoring
 -> audio/feedback
+-> save/economy
+-> performance/code cleanup
+-> transitions/completion
 ```
