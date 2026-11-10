@@ -27,6 +27,18 @@ public sealed class ObstacleFeedback : MonoBehaviour
         levelManager = FindFirstObjectByType<LevelManager>();
     }
 
+    private void OnDisable() => ResetFeedback();
+
+    public void ResetFeedback()
+    {
+        StopAllCoroutines();
+        nextHitTime = 0f;
+        // Inactive objects may not have received Awake yet.
+        if (renderers == null) return;
+        transform.localScale = normalScale;
+        SetRendererColor(null);
+    }
+
     private void OnCollisionEnter(Collision collision)
     {
         HandleHit(collision.collider);

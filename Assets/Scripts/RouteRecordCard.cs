@@ -11,6 +11,9 @@ public sealed class RouteRecordCard : MonoBehaviour
     public void Refresh(int route,int place,bool completed,bool available)
     {
         if(routePictures!=null&&route<routePictures.Length)thumbnail.sprite=routePictures[route];
+        thumbnail.type=Image.Type.Simple;
+        thumbnail.preserveAspect=true;
+        thumbnail.useSpriteMesh=false;
         routeNumber.text=$"Route {route+1:00}";
         positionText.text=completed?place.ToString():"—";
         medal.gameObject.SetActive(completed&&place<=3);

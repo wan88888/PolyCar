@@ -14,7 +14,8 @@ public static class DifficultyValidation
     private static void Call(object o,string name,params object[] args)=>o.GetType().GetMethod(name,BindingFlags.Instance|BindingFlags.NonPublic).Invoke(o,args);
     public static void Run()=>Validate(false);
     public static void DriftRun()=>Validate(true);
-    private static void Validate(bool drift)
+    public static void DiagnosticRun()=>Validate(false,8,true);
+    private static void Validate(bool drift,int firstRoute=0,bool diagnostic=false)
     {
         EditorSceneManager.OpenScene("Assets/Scenes/DriftPrototype.unity");
         var maps=GameObject.Find("LevelMaps").transform;
@@ -25,13 +26,14 @@ public static class DifficultyValidation
         int failed=0;
         try
         {
-            for(int route=0;route<(drift?2:10);route++)
+            for(int route=firstRoute;route<(drift?2:10);route++)
             {
                 for(int i=0;i<maps.childCount;i++)maps.GetChild(i).gameObject.SetActive(i==route);
                 var level=maps.GetChild(route);var course=level.GetComponent<RaceCourse>();var points=course.centerLine;
                 foreach(var coin in level.GetComponentsInChildren<CoinPickup>())coin.GetComponent<Collider>().isTrigger=true;
                 var cumulative=new float[points.Length];for(int i=1;i<points.Length;i++)cumulative[i]=cumulative[i-1]+Vector3.Distance(points[i-1],points[i]);
                 float length=cumulative[cumulative.Length-1];bool closed=Vector3.Distance(points[0],points[points.Length-1])<0.1f;
+                var obstaclePlan=PlanObstacles(level.Find("Obstacles"),points,cumulative,course.gateHalfWidth-.5f);
                 var spawn=level.Find("PlayerSpawnPoint");
                 var car=Object.Instantiate(prefab,spawn.position,spawn.rotation).GetComponent<CarController>();
                 Call(car,"Awake");car.SetControlsEnabled(true);var body=car.GetComponent<Rigidbody>();
@@ -40,6 +42,7 @@ public static class DifficultyValidation
                 Physics.SyncTransforms();
                 int nearest=0,passed=0,grounded=0,steps=0;float seconds=0,maxDeviation=0;
                 var previous=body.position;
+                if(diagnostic)Debug.Log($"DIAGNOSTIC_SPAWN route={route+1} spawn={spawn.position} firstPoint={points[0]} gate1={course.gates[0].position} gateForward={course.gates[0].forward}");
                 Vector3 Sample(float d){if(closed)d=Mathf.Repeat(d,length);else if(d>length)return points[points.Length-1]+(points[points.Length-1]-points[points.Length-2]).normalized*(d-length);HarborArtBuilder.Sample(points,d,out var p,out var f);return p;}
                 for(int step=0;step<12000;step++)
                 {
@@ -55,7 +58,24 @@ public static class DifficultyValidation
                     float turn=Mathf.Abs(Vector3.SignedAngle(ahead,later,Vector3.up));
                     float targetSpeed=Mathf.Lerp(15,5,Mathf.InverseLerp(2,35,turn));
                     float lookAhead=Mathf.Lerp(4,7,Mathf.InverseLerp(4,16,car.ForwardSpeed));
-                    var aim=Sample(progress+lookAhead)-body.position;aim.y=0;
+                    // The audit driver reads physical obstacle bounds and approaches the open side at a cautious speed.
+                    // This remains real Rigidbody driving with the game's unmodified gates and collisions.
+                    float lateralTarget=0;
+                    foreach(var obstacle in obstaclePlan)
+                    {
+                        float gap=obstacle.distance-progress;
+                        if(closed && gap < -length*.5f)gap+=length;
+                        if(gap < -10 || gap > 30)continue;
+                        float weight=Mathf.SmoothStep(0,1,Mathf.InverseLerp(30,10,gap))*Mathf.SmoothStep(0,1,Mathf.InverseLerp(-10,-2,gap));
+                        lateralTarget+=obstacle.lateral*weight;
+                        if(gap>-3 && gap<24)targetSpeed=Mathf.Min(targetSpeed,9);
+                    }
+                    float laneLimit=Mathf.Max(.25f,course.gateHalfWidth-.5f-1.4f);
+                    lateralTarget=Mathf.Clamp(lateralTarget,-laneLimit,laneLimit);
+                    var aimPoint=Sample(progress+lookAhead);
+                    var aimForward=Sample(progress+lookAhead+1)-Sample(progress+lookAhead-1);aimForward.y=0;aimForward.Normalize();
+                    aimPoint+=Vector3.Cross(Vector3.up,aimForward)*lateralTarget;
+                    var aim=aimPoint-body.position;aim.y=0;
                     float angle=Vector3.SignedAngle(car.transform.forward,aim,Vector3.up);
                     targetSpeed=Mathf.Min(targetSpeed,Mathf.Lerp(16,5,Mathf.InverseLerp(12,65,Mathf.Abs(angle))));
                     bool slide=drift&&car.ForwardSpeed>7&&turn>12&&turn<40&&(step%70)<12;
@@ -65,6 +85,23 @@ public static class DifficultyValidation
                     Call(car,"FixedUpdate");Physics.Simulate(0.02f);car.transform.SetPositionAndRotation(body.position,body.rotation);
                     Call(score,"UpdateDriftScoring",0.02f);
                     if(car.IsGrounded)grounded++;steps++;seconds+=0.02f;maxDeviation=Mathf.Max(maxDeviation,Mathf.Sqrt(best));
+                    if(diagnostic && passed<course.gates.Length)
+                    {
+                        var ga=course.gates[passed].InverseTransformPoint(previous);var gb=course.gates[passed].InverseTransformPoint(body.position);
+                        if(ga.z<0 && gb.z>=0)Debug.Log($"DIAGNOSTIC_GATE route={route+1} time={seconds:F2} gate={passed+1} halfWidth={course.gateHalfWidth} local={Vector3.Lerp(ga,gb,-ga.z/(gb.z-ga.z))} position={body.position} forward={car.transform.forward}");
+                        if(step>400 && step%2500==0 && body.linearVelocity.magnitude<0.4f)
+                        {
+                            var chassis=car.GetComponent<Collider>();
+                            var overlaps=Physics.OverlapSphere(body.position,4,~0,QueryTriggerInteraction.Ignore);
+                            Debug.Log($"DIAGNOSTIC_STUCK route={route+1} step={step} pos={body.position} velocity={body.linearVelocity} steer={steer} target={targetSpeed} rotation={body.rotation.eulerAngles}");
+                            foreach(var hit in overlaps)
+                            {
+                                if(hit==chassis)continue;
+                                bool penetration=Physics.ComputePenetration(chassis,chassis.transform.position,chassis.transform.rotation,hit,hit.transform.position,hit.transform.rotation,out var direction,out float depth);
+                                if(penetration)Debug.Log($"DIAGNOSTIC_CONTACT {hit.name} pos={hit.transform.position} type={hit.GetType().Name} normal={direction} depth={depth:F4}");
+                            }
+                        }
+                    }
                     if(passed<course.gates.Length&&RaceCourse.CrossedGate(previous,body.position,course.gates[passed],course.gateHalfWidth))passed++;
                     previous=body.position;
                     if(passed==course.gates.Length)break;
@@ -77,8 +114,41 @@ public static class DifficultyValidation
                 Object.DestroyImmediate(car.gameObject);Object.DestroyImmediate(scoreObject);
             }
         }
-        finally{Physics.simulationMode=previousMode;File.WriteAllLines(drift?"/tmp/polycar-balance-drift.csv":"/tmp/polycar-balance-driving.csv",rows);}
+        finally{Physics.simulationMode=previousMode;File.WriteAllLines(diagnostic?"/tmp/polycar-balance-diagnostic.csv":drift?"/tmp/polycar-balance-drift.csv":"/tmp/polycar-balance-driving.csv",rows);}
         if(failed>0)throw new Exception("Route follower failed on "+failed+" courses; inspect balance report");
         Debug.Log("BALANCE_ROUTES_OK mode="+(drift?"drift":"normal"));
+    }
+
+    private struct ObstaclePlan { public float distance,lateral,separation; }
+    private static List<ObstaclePlan> PlanObstacles(Transform obstacles,Vector3[] points,float[] cumulative,float halfWidth)
+    {
+        var result=new List<ObstaclePlan>();
+        foreach(Transform obstacle in obstacles)
+        {
+            var colliders=obstacle.GetComponentsInChildren<Collider>();if(colliders.Length==0)continue;
+            var bounds=colliders[0].bounds;foreach(var collider in colliders)bounds.Encapsulate(collider.bounds);
+            var candidates=new List<ObstaclePlan>();
+            for(int i=1;i<points.Length;i++)
+            {
+                var delta=points[i]-points[i-1];delta.y=0;
+                var relative=bounds.center-points[i-1];relative.y=0;
+                float t=Vector3.Dot(relative,delta)/Mathf.Max(delta.sqrMagnitude,.0001f);
+                if(t<0 || t>1)continue;
+                var side=Vector3.Cross(Vector3.up,delta.normalized);
+                float signed=Vector3.Dot(relative,side);
+                float radius=Mathf.Abs(side.x)*bounds.extents.x+Mathf.Abs(side.z)*bounds.extents.z;
+                if(Mathf.Abs(signed)-radius>halfWidth+1)continue;
+                float sign=signed>=0?1:-1;
+                float safe=signed-sign*(radius+1.8f);
+                float target=sign>0?Mathf.Min(-.65f,safe):Mathf.Max(.65f,safe);
+                target=Mathf.Clamp(target,-Mathf.Max(.25f,halfWidth-1.4f),Mathf.Max(.25f,halfWidth-1.4f));
+                var candidate=new ObstaclePlan{distance=Mathf.Lerp(cumulative[i-1],cumulative[i],t),lateral=target,separation=Mathf.Abs(signed)};
+                int previous=candidates.FindIndex(c=>Mathf.Abs(c.distance-candidate.distance)<10);
+                if(previous<0)candidates.Add(candidate);
+                else if(candidate.separation<candidates[previous].separation)candidates[previous]=candidate;
+            }
+            result.AddRange(candidates);
+        }
+        return result;
     }
 }

@@ -1,0 +1,3 @@
+Full interface review and macOS build succeeded.
+Selected route preserved: 7 -> review -> 7.
+Original user selection restored by the outer scope.

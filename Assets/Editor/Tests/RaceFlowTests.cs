@@ -48,6 +48,32 @@ public sealed class RaceFlowTests
     private void StartRace(){level.BeginRun();Call(level,"TickRun",3.1f);}
 
     [Test]
+    public void CoinOverlapDuringCountdownIsCreditedOnceWhenRaceStarts()
+    {
+        var coin=Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Pickups/Coin.prefab")).GetComponent<CoinPickup>();
+        SceneManager.MoveGameObjectToScene(coin.gameObject,scene);
+        Call(coin,"Awake");Set(coin,"levelManager",level);
+        var hud=Make("Coin count").AddComponent<Text>();Set(level,"coinText",hud);
+        var collider=car.gameObject.AddComponent<BoxCollider>();
+        level.BeginRun();Call(coin,"OnTriggerEnter",collider);
+        Assert.That(coin.IsCollected,Is.False);Assert.That(coin.gameObject.activeSelf,Is.True);
+        Call(level,"TickRun",3.1f);Call(coin,"OnTriggerStay",collider);
+        Assert.That(coin.IsCollected,Is.True);Assert.That(level.CollectedCoins,Is.EqualTo(1));Assert.That(hud.text,Is.EqualTo("1/1"));
+        Call(coin,"OnTriggerEnter",collider);Assert.That(level.CollectedCoins,Is.EqualTo(1));
+    }
+
+    [Test]
+    public void CoinOverlapWhilePausedDoesNotConsumeOrCreditUntilResumed()
+    {
+        var coin=Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Pickups/Coin.prefab")).GetComponent<CoinPickup>();
+        SceneManager.MoveGameObjectToScene(coin.gameObject,scene);
+        Call(coin,"Awake");Set(coin,"levelManager",level);
+        var collider=car.gameObject.AddComponent<BoxCollider>();StartRace();Time.timeScale=0;
+        Call(coin,"OnTriggerEnter",collider);Assert.That(coin.IsCollected,Is.False);Assert.That(level.CollectedCoins,Is.Zero);
+        Time.timeScale=1;Call(coin,"OnTriggerStay",collider);Assert.That(level.CollectedCoins,Is.EqualTo(1));
+    }
+
+    [Test]
     public void CountdownBlocksControlsAndDoesNotConsumeRaceTime()
     {
         level.BeginRun();car.SetInput(1,1,0,false);

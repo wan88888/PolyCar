@@ -149,10 +149,10 @@ public static class MenuPolishBuilder
             var badge=Node("Badge",row,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(18,0),new Vector2(76,80));var badgeSurface=Surface(badge,Blue,Blue,new Color(0.70f,0.93f,1),20,2);
             var medal=MenuIcon.Attach(badge.transform,MenuIcon.Kind.Trophy,48);medal.color=Ink;
             var place=Text("Position",badge.transform,"—",new Vector2(0.5f,0.5f),Vector2.zero,new Vector2(68,58),32,Color.white);
-            var portrait=Node("Portrait",row,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(112,0),new Vector2(118,88));var photo=portrait.AddComponent<Image>();photo.preserveAspect=true;photo.raycastTarget=false;
-            var route=row.Find("Route").GetComponent<Text>();Rect(route.transform,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(254,17),new Vector2(620,44));route.fontSize=30;route.fontStyle=FontStyle.Bold;route.color=Color.white;
-            var number=Text("RouteNumber",row,"Route 01",new Vector2(0,0.5f),new Vector2(256,-24),new Vector2(270,32),19,new Color(0.79f,0.95f,1),TextAnchor.MiddleLeft);
-            var status=row.Find("Status").GetComponent<Text>();Rect(status.transform,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(430,-24),new Vector2(250,32));status.fontSize=19;
+            var portrait=Node("Portrait",row,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(112,0),new Vector2(192,108));var photo=portrait.AddComponent<Image>();photo.preserveAspect=true;photo.raycastTarget=false;
+            var route=row.Find("Route").GetComponent<Text>();Rect(route.transform,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(326,17),new Vector2(548,44));route.fontSize=30;route.fontStyle=FontStyle.Bold;route.color=Color.white;
+            var number=Text("RouteNumber",row,"Route 01",new Vector2(0,0.5f),new Vector2(328,-24),new Vector2(270,32),19,new Color(0.79f,0.95f,1),TextAnchor.MiddleLeft);
+            var status=row.Find("Status").GetComponent<Text>();Rect(status.transform,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(502,-24),new Vector2(250,32));status.fontSize=19;
             var time=row.Find("Time").GetComponent<Text>();Rect(time.transform,new Vector2(1,0.5f),new Vector2(1,0.5f),new Vector2(-300,-14),new Vector2(250,42));time.alignment=TextAnchor.MiddleCenter;time.fontSize=27;time.color=Color.white;
             Text("TimeCaption",row,"Best time",new Vector2(1,0.5f),new Vector2(-300,25),new Vector2(250,26),18,new Color(0.79f,0.95f,1));
             var pill=Node("ScorePill",row,new Vector2(1,0.5f),new Vector2(1,0.5f),new Vector2(-20,0),new Vector2(250,76));Surface(pill,new Color(0.10f,0.39f,0.58f),new Color(0.055f,0.28f,0.47f),new Color(0.45f,0.81f,0.94f),32,2);

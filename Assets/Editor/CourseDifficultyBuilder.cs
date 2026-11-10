@@ -29,7 +29,9 @@ public static class CourseDifficultyBuilder
             8=>Points(-115,-100,-50,-100,-20,-50,-85,-20,-95,45,-35,95,30,60,0,5,65,-35,115,0,130,65,65,115,0,100,55,35,135,-80),
             _=>Points(-120,-100,-65,-40,-110,25,-50,100,0,55,-35,0,15,-70,70,-40,35,20,90,85,130,25,80,-20,125,-100,25,-120,-40,-85,-120,-100)
         };
-        return RoundCorners(knots, new[]{0f,32,30,30,30,30,30,30,32,34}[index]);
+        var route=RoundCorners(knots, new[]{0f,32,30,30,30,30,30,30,32,34}[index]);
+        if(index>=2)for(int i=0;i<route.Length;i++)route[i].y=CourseTerrainBuilder.HeightAt(index,route[i].x,route[i].z);
+        return route;
     }
     // Quadratic fillets retain the intended turns but remove instantaneous heading changes.
     public static Vector3[] RoundCorners(Vector3[] knots,float cut)
@@ -87,15 +89,18 @@ public static class CourseDifficultyBuilder
         for(int i=0;i<points.Length;i++)
         {
             int prev=i==0?(closed?points.Length-2:0):i-1,next=i==points.Length-1?(closed?1:i):i+1;
-            offsets[i]=Vector3.Cross(Vector3.up,(points[next]-points[prev]).normalized);
+            offsets[i]=Vector3.Cross(Vector3.up,points[next]-points[prev]).normalized;
         }
-        void Strip(string suffix,float left,float right,float y,Material mat,bool collision)
+        void Strip(string suffix,float left,float right,float y,Material mat,bool collision,float? rightY=null,bool terrainLeft=false,bool terrainRight=false)
         {
             string name=$"Course_{index+1:00}_{suffix}";var v=new Vector3[points.Length*2];var tri=new int[(points.Length-1)*6];var uv=new Vector2[v.Length];float distance=0;
             for(int i=0;i<points.Length;i++)
             {
                 if(i>0)distance+=Vector3.Distance(points[i-1],points[i]);
-                v[2*i]=points[i]+offsets[i]*left+Vector3.up*y;v[2*i+1]=points[i]+offsets[i]*right+Vector3.up*y;
+                v[2*i]=points[i]+offsets[i]*left+Vector3.up*y;v[2*i+1]=points[i]+offsets[i]*right+Vector3.up*(rightY??y);
+                // Offset hairpin edges do not share their centerline's height; join the actual terrain triangle.
+                if(terrainLeft)v[2*i].y=CourseTerrainBuilder.SurfaceHeight(index,v[2*i],points,width)+0.002f;
+                if(terrainRight)v[2*i+1].y=CourseTerrainBuilder.SurfaceHeight(index,v[2*i+1],points,width)+0.002f;
                 uv[2*i]=new Vector2(0,distance/12);uv[2*i+1]=new Vector2(1,distance/12);
                 if(i==points.Length-1)continue;int k=i*6,n=i*2;tri[k]=n;tri[k+1]=n+2;tri[k+2]=n+1;tri[k+3]=n+1;tri[k+4]=n+2;tri[k+5]=n+3;
             }
@@ -106,10 +111,20 @@ public static class CourseDifficultyBuilder
             go.GetComponent<MeshFilter>().sharedMesh=AssetDatabase.LoadAssetAtPath<Mesh>(path);go.GetComponent<Renderer>().sharedMaterial=mat;
             if(collision)go.AddComponent<MeshCollider>().sharedMesh=go.GetComponent<MeshFilter>().sharedMesh;
         }
-        Strip("Shoulder",-width/2-1,width/2+1,0.005f,concrete,false);
+        // A 5 mm return lip matches the original off-road collider and cannot trap the chassis at crossings.
+        float shoulderY=index>=8?0.038f:0.035f;
+        Strip("Shoulder",-width/2-3,width/2+3,shoulderY,concrete,true);
+        if(index>=2&&index<8)
+        {
+            // Explicit ramps eliminate the former 21.5 cm vertical lip beyond the shoulder.
+            var verge=HarborArtBuilder.Material($"Terrain_{index+1:00}_Earth",CourseTerrainBuilder.EarthColor(index));
+            Strip("LeftVergeRamp",-width/2-5,-width/2-3,-0.18f,verge,true,shoulderY,true,false);
+            Strip("RightVergeRamp",width/2+3,width/2+5,shoulderY,verge,true,-0.18f,false,true);
+        }
         Strip("Road",-width/2,width/2,0.04f,asphalt,true);
         Strip("LeftEdge",-width/2+0.12f,-width/2+0.25f,0.055f,paint,false);
         Strip("RightEdge",width/2-0.25f,width/2-0.12f,0.055f,paint,false);
+        if(index>=2){CourseTerrainBuilder.Build(parent.parent,points,width,index);return;}
         Bounds bounds=new Bounds(points[0],Vector3.zero);foreach(var p in points)bounds.Encapsulate(p);
         var ground=new GameObject("Off-road collision",typeof(BoxCollider));ground.transform.SetParent(parent,false);ground.transform.position=new Vector3(bounds.center.x,-0.265f,bounds.center.z);ground.GetComponent<BoxCollider>().size=new Vector3(bounds.size.x+120,0.6f,bounds.size.z+120);
     }

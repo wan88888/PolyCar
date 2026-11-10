@@ -94,7 +94,7 @@ Routes now displays two large rounded preview cards per page, with an orange nam
 
 S-Curve Sprint uses one continuous road mesh with painted edges and rounded transitions, replacing the small angular yard. Its new centerline is about 300 m long, with an 11 m road, eleven gates and two cones. The works district is repositioned around this larger layout. Decorative checkpoint ticks and the low start beam are removed, and actual gate markers are reduced in size for readability.
 
-`SceneLook` owns each showcase level's sky, fog and sun tint, restoring shared state when disabled. It is also applied explicitly for editor captures. `ShowcaseSky` and `HarborWater` are lightweight procedural URP shaders. The other eight levels keep their existing presentation. Scene rebuilding updates the route-card previews.
+`SceneLook` owns each showcase level's sky, fog and sun tint, restoring shared state when disabled. It is also applied explicitly for editor captures. `ShowcaseSky` and `HarborWater` are lightweight procedural URP shaders. Routes 3–10 now use `ThemedSceneryBuilder` and `CourseTerrainBuilder` for their own environments (see below). Scene rebuilding updates the route-card previews.
 
 ### Progressive difficulty
 
@@ -116,3 +116,23 @@ S-Curve Sprint uses one continuous road mesh with painted edges and rounded tran
 Gold times reflect different route lengths: approximately 40% spare time over the deterministic starter-car reference early on, tightening to 19% by the finale. `DifficultyValidation.Run` drives all ten courses with the same car and controller, without teleporting or recovering; `DriftRun` checks the first two with additional handbrake inputs. These are repeatable physics checks, not proof that every human player will perceive a strictly increasing difficulty.
 
 Revised-route time, drift and coin records use the `PolyCar_v2_` namespace. Existing legacy records remain stored; wallet balance, car ownership, selected car and route unlock/completion progress retain their keys. This prevents obsolete short-route best times from becoming unbeatable records on the longer courses.
+
+
+### Ten authored route environments
+
+`CourseTerrainBuilder` creates real road elevation, faceted collidable ground, wide escape shoulders, drainage and mountain retaining walls/guardrails. Height is a continuous world-space field so crossing roads and circuit seams remain aligned. `ThemedSceneryBuilder` places scenery outside the driving/camera corridor and supplies independent sky, sun direction/intensity, ambient light and fog for every later route:
+
+| Route | Environment |
+|---|---|
+| 3 | Pine forest climb, lookout and wooded mountain slopes |
+| 4 | Terraced quarry, excavator and rubble |
+| 5 | Warm sunset beach, sea, palms and pavilion |
+| 6 | Fishing village, pier, fishing boats and waterfront houses |
+| 7 | Red sandstone canyon, buttes and roadside rock walls |
+| 8 | Alpine switchbacks, valley and distant peaks |
+| 9 | Refinery tanks, chimneys and elevated pipework |
+| 10 | Night streets, emissive signs and actual local lights |
+
+Rebuild using `ExternalArtBuilder.BuildAll`. It regenerates the scene and all ten preview images. `EnvironmentValidation.Run` writes overview and driving-height views, geometry/material budgets, road/shoulder support and sampled camera-clearance checks to `Review/Environment`. `DifficultyValidation.Run` separately completes routes with real Rigidbody physics; it does not teleport or recover the car. Run EditMode tests for lighting restoration, real level-switch ordering, road grades, gameplay and terrain regression checks. The final acceptance evidence is in `Review/Environment/Acceptance.md`.
+
+`EnvironmentDeliveryBuilder.BuildPlayer` builds `Builds/PolyCar-Environments.app`. This development player supports `--environment-benchmark <absolute-output-directory>` for a 1920×1080 animated route tour with frame-time CSV. The tour is a rendering benchmark with a kinematic visual car, UI hidden and VSync off, not a physics or human-playtest claim. Normal launches are unaffected. Review the saved evidence for exact results and the measured host; performance on other devices is not implied.

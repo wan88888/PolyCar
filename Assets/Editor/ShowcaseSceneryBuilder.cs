@@ -98,6 +98,7 @@ public static class ShowcaseSceneryBuilder
             var pos=p+side*(course.gateHalfWidth+5.5f);
             if(ClearPoint(pos,2))Lamp(pos,Quaternion.LookRotation(f).eulerAngles.y,6);
         }
+        RoadsideDrains();
         FinishArt(level);
     }
 
@@ -156,7 +157,24 @@ public static class ShowcaseSceneryBuilder
             if(child.name=="Gate beacon"){var p=child.localPosition;p.y=0.9f;child.localPosition=p;child.localScale=new Vector3(0.12f,1.35f,0.12f);}
             if(child.name=="Gate footing"){var p=child.localPosition;p.y=0.2f;child.localPosition=p;child.localScale=new Vector3(0.42f,0.4f,0.5f);}
         }
+        RoadsideDrains();
         FinishArt(level);
+    }
+
+    private static void RoadsideDrains()
+    {
+        float length = Length(course.centerLine);
+        for (float distance = 16; distance < length - 12; distance += 22)
+        {
+            HarborArtBuilder.Sample(course.centerLine, distance, out var point, out var forward);
+            var right = Vector3.Cross(Vector3.up, forward).normalized;
+            foreach (int side in new[] {-1, 1})
+            {
+                var position = point + right * side * (course.gateHalfWidth + 0.7f);
+                position.y = 0.04f;
+                Drain(position, Quaternion.LookRotation(forward).eulerAngles.y);
+            }
+        }
     }
 
     private static void FinishArt(Transform level)
@@ -221,8 +239,13 @@ public static class ShowcaseSceneryBuilder
     }
     private static void Drain(Vector3 p,float yaw)
     {
-        var grate=Box("Drain surround",p,new Vector3(1.2f,0.014f,0.5f),steel);grate.transform.rotation=Quaternion.Euler(0,yaw,0);
-        for(int i=0;i<7;i++)Box("Drain slot",p+new Vector3(-0.5f+i/6f,0.01f,0),new Vector3(0.045f,0.012f,0.38f),concrete);
+        var rotation=Quaternion.Euler(0,yaw,0);
+        var grate=Box("Drain surround",p,new Vector3(1.2f,0.014f,0.5f),steel);grate.transform.rotation=rotation;
+        for(int i=0;i<7;i++)
+        {
+            var slot=Box("Drain slot",p+rotation*new Vector3(-0.5f+i/6f,0.01f,0),new Vector3(0.045f,0.012f,0.38f),concrete);
+            slot.transform.rotation=rotation;
+        }
     }
     private static void Label(string text,Vector3 p,float yaw,float size,Color tint)
     {

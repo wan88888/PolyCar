@@ -274,15 +274,24 @@ public sealed class LevelManager : MonoBehaviour
         currentLevelIndex = Mathf.Clamp(levelIndex, 0, LevelCount - 1);
         SaveManager.SetSelectedRoute(currentLevelIndex);
 
+        // Release the previous level's shared lighting before the incoming level captures it.
+        // A single ascending SetActive loop would let a later night level restore over an earlier day level.
         for (int i = 0; i < levels.Length; i++)
         {
-            if (levels[i].root != null)
+            if (i != currentLevelIndex && levels[i].root != null)
             {
-                levels[i].root.gameObject.SetActive(i == currentLevelIndex);
+                levels[i].root.gameObject.SetActive(false);
+                // Explicit calls also keep editor-driven level changes correct; runtime callbacks are idempotent.
+                levels[i].root.GetComponent<SceneLook>()?.Restore();
             }
         }
 
         LevelDefinition activeLevel = levels[currentLevelIndex];
+        if (activeLevel.root != null)
+        {
+            activeLevel.root.gameObject.SetActive(true);
+            activeLevel.root.GetComponent<SceneLook>()?.Apply();
+        }
         collectedCoins = 0;
         bonusCoinsThisRun = 0;
         penaltyCoinsThisRun = 0;
@@ -305,6 +314,9 @@ public sealed class LevelManager : MonoBehaviour
         }
 
         int coinCount = ResetCoins(activeLevel.root);
+        if (activeLevel.root != null)
+            foreach (var obstacle in activeLevel.root.GetComponentsInChildren<ObstacleFeedback>(true))
+                obstacle.ResetFeedback();
         activeTargetCoins = coinCount > 0
             ? Mathf.Clamp(activeLevel.targetCoins, 1, coinCount)
             : Mathf.Max(1, activeLevel.targetCoins);

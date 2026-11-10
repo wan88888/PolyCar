@@ -252,7 +252,6 @@ public static class LowPolyDriftPrototypeBuilder
         CreateLighting();
         if (ExternalArtBuilder.Available) ExternalArtBuilder.ApplyToLoadedScene();
         ShopPreviewBuilder.BuildThumbnails();
-        RoutePreviewBuilder.BuildThumbnails();
         MenuPolishBuilder.Apply(GameObject.Find("Canvas").transform);
 
         Selection.activeObject = AssetDatabase.LoadAssetAtPath<GameObject>(StarterCarPrefabPath);
@@ -261,6 +260,12 @@ public static class LowPolyDriftPrototypeBuilder
         AddSceneToBuildSettings();
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
+        // Capture serialized geometry after reloading: newly replaced Mesh assets can retain
+        // stale GPU buffers during the authoring pass, especially when adding road elevation.
+        scene = EditorSceneManager.OpenScene(ScenePath);
+        RoutePreviewBuilder.BuildThumbnails();
+        EditorSceneManager.SaveScene(scene, ScenePath);
+        AssetDatabase.SaveAssets();
 
         Debug.Log($"Low Poly drift prototype scene created at {ScenePath}. Road levels: {builtLevels.Length}.");
     }
@@ -422,7 +427,7 @@ public static class LowPolyDriftPrototypeBuilder
     {
         GameObject coin = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         coin.name = "Coin";
-        coin.transform.localScale = new Vector3(0.45f, 0.08f, 0.45f);
+        CoinPresentationBuilder.ConfigurePickup(coin);
         coin.GetComponent<Renderer>().sharedMaterial = coinMaterial;
         coin.GetComponent<Collider>().isTrigger = true;
         coin.AddComponent<CoinPickup>();

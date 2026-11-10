@@ -25,6 +25,7 @@ public sealed class GaragePreview : MonoBehaviour
         target = new RenderTexture(1200,520,24); target.antiAliasing = 4; previewCamera.targetTexture = target;
         GetComponent<RawImage>().texture = target;
         var light = new GameObject("Studio key").AddComponent<Light>(); light.transform.SetParent(studio.transform,false);
+        light.gameObject.layer = 31;
         light.type = LightType.Directional; light.intensity = 1.5f; light.color = new Color(1f,0.9f,0.75f);
         light.transform.localRotation = Quaternion.Euler(45,-40,0); light.cullingMask = 1 << 31;
     }

@@ -10,7 +10,6 @@ public sealed class CoinPickup : MonoBehaviour
     [SerializeField, Min(0f)] private float bobHeight = 0.18f;
     [SerializeField, Min(0f)] private float bobSpeed = 2.4f;
     [SerializeField, Min(1f)] private float highlightScale = 1.35f;
-    [SerializeField] private Color highlightColor = new Color(0.45f, 0.95f, 1f);
 
     private LevelManager levelManager;
     private Renderer[] renderers;
@@ -48,24 +47,26 @@ public sealed class CoinPickup : MonoBehaviour
         transform.position = startPosition + Vector3.up * (Mathf.Sin(Time.time * bobSpeed) * activeBobHeight);
     }
 
-    private void OnTriggerEnter(Collider other)
+    private void OnTriggerEnter(Collider other) => TryCollect(other);
+    private void OnTriggerStay(Collider other) => TryCollect(other);
+
+    private void TryCollect(Collider other)
     {
         if (collected || other.GetComponentInParent<CarController>() == null)
         {
             return;
         }
 
-        collected = true;
-        SetHighlighted(false);
         if (levelManager == null)
         {
             levelManager = FindFirstObjectByType<LevelManager>();
         }
 
-        if (levelManager != null)
-        {
-            levelManager.CollectCoin(this);
-        }
+        // A countdown or paused overlap must not consume a coin without credit.
+        if (levelManager == null || levelManager.Phase != LevelManager.RunPhase.Racing || Time.timeScale == 0f) return;
+        collected = true;
+        SetHighlighted(false);
+        levelManager.CollectCoin(this);
 
         AudioManager.Instance?.PlayCoin();
         gameObject.SetActive(false);
@@ -99,7 +100,7 @@ public sealed class CoinPickup : MonoBehaviour
             }
 
             renderers[i].GetPropertyBlock(propertyBlock);
-            propertyBlock.SetColor(ColorId, active ? highlightColor : normalColors[i]);
+            propertyBlock.SetColor(ColorId, normalColors[i]);
             renderers[i].SetPropertyBlock(propertyBlock);
         }
     }

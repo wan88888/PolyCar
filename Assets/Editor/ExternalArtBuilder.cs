@@ -139,9 +139,9 @@ public static class ExternalArtBuilder
         var root=new GameObject("Imported scenery").transform;root.SetParent(level,false);
         if(index==0) ShowcaseSceneryBuilder.Harbor(level, root);
         else if(index==1) ShowcaseSceneryBuilder.Industrial(level, root);
-        else PopulateTheme(root,course,index);
+        else ThemedSceneryBuilder.Build(level,root,index);
         ReplaceObstacleVisuals(level);
-        if(index>1) AddRaceFacilities(root,course,index);
+
         for(int gateIndex=0;gateIndex<course.gates.Length;gateIndex++)
         {
             var gate=course.gates[gateIndex];

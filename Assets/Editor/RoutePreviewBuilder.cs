@@ -40,6 +40,7 @@ public static class RoutePreviewBuilder
         camera.backgroundColor = new Color(0.28f, 0.47f, 0.59f);
         camera.cullingMask = ~(1 << 5 | 1 << 31);
         camera.fieldOfView = 50;
+        camera.nearClipPlane = 5;
         camera.farClipPlane = 1200;
         camera.allowHDR = false;
         var target = new RenderTexture(960, 540, 24) { antiAliasing = 4 };
@@ -83,6 +84,10 @@ public static class RoutePreviewBuilder
             camera.targetTexture = null;
             target.Release(); Object.DestroyImmediate(target); Object.DestroyImmediate(camera.gameObject);
         }
+        // Rank and route selection always share the same full-frame images.
+        var pictures=new Sprite[maps.childCount];
+        for(int i=0;i<pictures.Length;i++)pictures[i]=panel.Find($"LevelButton_{i+1:00}/Preview").GetComponent<Image>().sprite;
+        foreach(var row in GameObject.Find("Canvas").GetComponentsInChildren<RouteRecordCard>(true))row.routePictures=pictures;
         Debug.Log("ROUTE_PREVIEWS_RENDERED actualCourses=" + maps.childCount);
     }
 

@@ -1,0 +1,6 @@
+Mac14,7
+Apple M2
+Apple M2
+Mac OS X 26.1.0
+Unity 6000.2.7f2
+Development player; VSync off; camera traversal, physics disabled; UI hidden. Excludes 2 s warm-up and screenshot frames.

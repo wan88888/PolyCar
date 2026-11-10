@@ -10,7 +10,7 @@ public static class PauseMenuView
         var root=Node("Pause",parent,Vector2.zero,Vector2.zero);
         var rect=(RectTransform)root.transform;rect.anchorMin=Vector2.zero;rect.anchorMax=Vector2.one;rect.sizeDelta=Vector2.zero;
         var shade=root.AddComponent<Image>();shade.color=new Color(0.025f,0.10f,0.20f,0.72f);
-        var card=Node("Dialog",root.transform,new Vector2(0,-15),new Vector2(820,490));
+        var card=Node("Dialog",root.transform,new Vector2(0,30),new Vector2(820,380));
         Surface(card,new Color(0.96f,0.99f,1),new Color(0.78f,0.91f,0.98f),new Color(1,0.78f,0.22f),44,7);
         var ribbon=Node("TitleRibbon",root.transform,new Vector2(0,190),new Vector2(870,116));
         Surface(ribbon,new Color(0.23f,0.74f,1),new Color(0.05f,0.40f,0.79f),new Color(1,0.82f,0.34f),24,4);
@@ -19,7 +19,6 @@ public static class PauseMenuView
         AddButton(root.transform,"Restart route",MenuIcon.Kind.Replay,new Vector2(0,-20),156,false,retry);
         AddButton(root.transform,"Home",MenuIcon.Kind.Home,new Vector2(230,-20),156,false,home);
         AddButton(root.transform,"CloseButton",MenuIcon.Kind.Close,new Vector2(400,286),82,false,resume);
-        Label("Controls",root.transform,"W/S  Drive     A/D  Steer     Space  Drift\nShift  Brake     R  Recover",new Vector2(0,-175),new Vector2(740,68),22,new Color(0.10f,0.29f,0.43f));
         root.SetActive(false);return root;
     }
     private static GameObject Node(string name,Transform parent,Vector2 pos,Vector2 size)

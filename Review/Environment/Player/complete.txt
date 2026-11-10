@@ -1,0 +1,1 @@
+All ten rendered route traversals completed. See frame timings; this does not replace physics validation or human playtesting.

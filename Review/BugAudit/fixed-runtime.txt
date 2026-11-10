@@ -1,0 +1,14 @@
+route=1 sunlight=Directional Light layer=0 cullingMask=2147483647 intensity=1.7
+route=2 sunlight=Directional Light layer=0 cullingMask=2147483647 intensity=1.7
+route=3 sunlight=Directional Light layer=0 cullingMask=2147483647 intensity=1.1
+route=4 sunlight=Directional Light layer=0 cullingMask=2147483647 intensity=1.35
+route=5 sunlight=Directional Light layer=0 cullingMask=2147483647 intensity=1.15
+route=6 sunlight=Directional Light layer=0 cullingMask=2147483647 intensity=1.2
+route=7 sunlight=Directional Light layer=0 cullingMask=2147483647 intensity=1.25
+route=8 sunlight=Directional Light layer=0 cullingMask=2147483647 intensity=1.2
+route=9 sunlight=Directional Light layer=0 cullingMask=2147483647 intensity=0.95
+route=10 sunlight=Directional Light layer=0 cullingMask=2147483647 intensity=0.34
+obstacle after hit scale=(1.12, 1.12, 1.12)
+paused camera smoothing velocity=(0.00, 0.00, 0.00) finite=True
+obstacle after reenable scale=(1.00, 1.00, 1.00) expected=(1.00, 1.00, 1.00)
+RUNTIME_FIXES_OK obstacleRestored=true routes=10

@@ -55,13 +55,11 @@ public static class GameplayPresentationBuilder
         foreach(string name in new[]{"Controls","GarageText","TotalCoinsText"})hud.Find(name).gameObject.SetActive(false);
         Panel(hud,"RoutePanel",new Vector2(0,1),new Vector2(28,-28),new Vector2(430,76));
         Panel(hud,"RunPanel",new Vector2(0.5f,1),new Vector2(0,-22),new Vector2(530,110));
-        Panel(hud,"PickupPanel",new Vector2(1,1),new Vector2(-142,-28),new Vector2(170,76));
         Panel(hud,"SpeedPanel",new Vector2(0,0),new Vector2(28,28),new Vector2(260,128));
         Panel(hud,"DriftPanel",new Vector2(1,0),new Vector2(-28,28),new Vector2(340,128));
         TextLayout(hud,"LevelText",new Vector2(0,1),new Vector2(48,-40),new Vector2(390,52),25,TextAnchor.MiddleLeft);
         TextLayout(hud,"GuidanceText",new Vector2(0.5f,1),new Vector2(0,-34),new Vector2(490,86),28,TextAnchor.MiddleCenter);
-        TextLayout(hud,"CoinText",new Vector2(1,1),new Vector2(-158,-40),new Vector2(102,50),28,TextAnchor.MiddleRight);
-        var coin=Node("PickupIcon",hud,new Vector2(1,1),new Vector2(-266,-45),new Vector2(40,40));var coinIcon=coin.AddComponent<MenuIcon>();coinIcon.icon=MenuIcon.Kind.Coin;coinIcon.raycastTarget=false;
+        ApplyCoinSizing(hud);
         TextLayout(hud,"SpeedText",new Vector2(0,0),new Vector2(50,67),new Vector2(155,78),60,TextAnchor.MiddleLeft);
         Label(hud,"SpeedUnit","km/h",new Vector2(0,0),new Vector2(201,79),new Vector2(80,36),20);
         TextLayout(hud,"DriftStateText",new Vector2(0,0),new Vector2(52,38),new Vector2(210,32),21,TextAnchor.MiddleLeft);
@@ -73,6 +71,14 @@ public static class GameplayPresentationBuilder
         foreach(var label in Object.FindObjectsByType<TextMesh>(FindObjectsInactive.Include,FindObjectsSortMode.None))
             if(label.text=="FINISH / LAP")label.text="Finish";
     }
+    public static void ApplyCoinSizing(Transform hud)
+    {
+        Panel(hud,"PickupPanel",new Vector2(1,1),new Vector2(-142,-28),new Vector2(230,84));
+        TextLayout(hud,"CoinText",new Vector2(1,1),new Vector2(-158,-36),new Vector2(120,60),38,TextAnchor.MiddleRight);
+        var coin=Node("PickupIcon",hud,new Vector2(1,1),new Vector2(-296,-36),new Vector2(68,68));
+        var icon=coin.AddComponent<MenuIcon>();icon.icon=MenuIcon.Kind.Coin;icon.raycastTarget=false;
+    }
+
     private static void Panel(Transform parent,string name,Vector2 anchor,Vector2 pos,Vector2 size)
     {
         var go=Node(name,parent,anchor,pos,size);var panel=Surface(go,new Color(0.04f,0.21f,0.33f,0.78f),new Color(0.025f,0.12f,0.23f,0.70f),20,1);panel.border=new Color(0.42f,0.76f,0.92f,0.35f);panel.shadowDepth=0;go.transform.SetAsFirstSibling();
