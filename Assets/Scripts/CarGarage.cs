@@ -24,6 +24,8 @@ public sealed class CarGarage : MonoBehaviour
     private GameObject currentCar;
     private int selectedIndex;
 
+    public GameObject SelectedPrefab => cars != null && cars.Length > 0 ? cars[selectedIndex].prefab : null;
+
     public int CarCount => cars != null ? cars.Length : 0;
     public int SelectedIndex => selectedIndex;
 
@@ -75,35 +77,6 @@ public sealed class CarGarage : MonoBehaviour
         RefreshUi();
     }
 
-    private void Update()
-    {
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard == null || cars == null)
-        {
-            return;
-        }
-
-        if (keyboard.digit1Key.wasPressedThisFrame || keyboard.numpad1Key.wasPressedThisFrame)
-        {
-            TrySelectOrUnlock(0, out _);
-        }
-
-        if (cars.Length > 1 && (keyboard.digit2Key.wasPressedThisFrame || keyboard.numpad2Key.wasPressedThisFrame))
-        {
-            TrySelectOrUnlock(1, out _);
-        }
-
-        if (cars.Length > 2 && (keyboard.digit3Key.wasPressedThisFrame || keyboard.numpad3Key.wasPressedThisFrame))
-        {
-            TrySelectOrUnlock(2, out _);
-        }
-
-        if (cars.Length > 3 && (keyboard.digit4Key.wasPressedThisFrame || keyboard.numpad4Key.wasPressedThisFrame))
-        {
-            TrySelectOrUnlock(3, out _);
-        }
-    }
-
     public void RefreshUi()
     {
         if (garageText == null || cars == null || cars.Length == 0)
@@ -151,6 +124,11 @@ public sealed class CarGarage : MonoBehaviour
     public bool TrySelectOrUnlock(int index, out string message)
     {
         message = string.Empty;
+        if (levelManager != null && levelManager.RunInProgress)
+        {
+            message = "Finish or leave the current run before changing cars";
+            return false;
+        }
         if (!IsValidCarIndex(index))
         {
             message = "Car unavailable";
@@ -162,7 +140,7 @@ public sealed class CarGarage : MonoBehaviour
         {
             if (!SaveManager.TrySpendCoins(car.unlockCost))
             {
-                message = $"Need {car.unlockCost} coins to unlock {car.displayName}";
+                message = "Insufficient Coins";
                 if (levelManager != null)
                 {
                     levelManager.ShowMessage(message);

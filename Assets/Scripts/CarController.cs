@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.InputSystem;
 
 /// <summary>
@@ -31,6 +32,7 @@ public sealed class CarController : MonoBehaviour
 
     [Header("Braking")]
     [SerializeField, Min(0f)] private float brakeDeceleration = 28f;
+    [SerializeField, Min(0f)] private float handbrakeDeceleration = 3f;
     [SerializeField, Range(0f, 1f)] private float brakeSteerMultiplier = 0.75f;
 
     [Header("Drift")]
@@ -40,17 +42,24 @@ public sealed class CarController : MonoBehaviour
     [SerializeField, Min(0f)] private float driftLateralGrip = 2.1f;
     [SerializeField, Min(0f)] private float driftSteeringMultiplier = 1.25f;
     [SerializeField, Min(0f)] private float driftReleaseDelay = 0.35f;
+    [SerializeField, Min(0f)] private float gripRecoveryRate = 3f;
 
     [Header("Stability")]
     [SerializeField] private Vector3 centerOfMassOffset = new Vector3(0f, -0.45f, 0f);
     [SerializeField, Min(0f)] private float downforce = 4f;
 
+    public bool ControlsEnabled { get; private set; } = true;
+    public bool IsGrounded { get; private set; } = true;
+    public float SteeringInput => steeringInput;
+    public float BrakeInput => Mathf.Max(brakeInput, handbrakeInput ? 0.45f : 0f);
+    private Collider vehicleCollider;
     private Rigidbody body;
     private float throttleInput;
     private float steeringInput;
     private float brakeInput;
     private bool handbrakeInput;
     private float driftHoldTimer;
+    private float driftBlend;
 
     public DriveState CurrentState { get; private set; } = DriveState.Normal;
     public bool IsDrifting => CurrentState == DriveState.Drift;
@@ -63,6 +72,7 @@ public sealed class CarController : MonoBehaviour
     private void Awake()
     {
         body = GetComponent<Rigidbody>();
+        vehicleCollider = GetComponent<Collider>();
         body.interpolation = RigidbodyInterpolation.Interpolate;
         body.centerOfMass = centerOfMassOffset;
         body.maxAngularVelocity = 8f;
@@ -70,14 +80,23 @@ public sealed class CarController : MonoBehaviour
 
     private void Update()
     {
-        if (readPlayerInput)
+        if (readPlayerInput && ControlsEnabled)
         {
-            ReadInput();
+            ReadInput(Time.deltaTime);
         }
     }
 
     private void FixedUpdate()
     {
+        IsGrounded = vehicleCollider == null || gameObject.scene.GetPhysicsScene().Raycast(
+            transform.position + Vector3.up * 0.25f, Vector3.down, out RaycastHit hit, 0.85f, ~0, QueryTriggerInteraction.Ignore)
+            && Vector3.Dot(hit.normal, Vector3.up) > 0.4f && Vector3.Dot(transform.up, Vector3.up) > 0.4f;
+        if (!IsGrounded)
+        {
+            CurrentState = DriveState.Normal;
+            driftHoldTimer = 0f;
+            return;
+        }
         UpdateDriveState();
         ApplyMotor();
         ApplyBrakes();
@@ -86,9 +105,24 @@ public sealed class CarController : MonoBehaviour
         ApplyDownforce();
     }
 
+    public void SetControlsEnabled(bool enabled)
+    {
+        ControlsEnabled = enabled;
+        if (!enabled)
+        {
+            throttleInput = steeringInput = 0f;
+            brakeInput = 1f;
+            handbrakeInput = false;
+            driftHoldTimer = 0f;
+            CurrentState = DriveState.Normal;
+        }
+        else brakeInput = 0f;
+    }
+
     public void SetInput(float throttle, float steering, float brake, bool handbrake)
     {
         readPlayerInput = false;
+        if (!ControlsEnabled) return;
         throttleInput = Mathf.Clamp(throttle, -1f, 1f);
         steeringInput = Mathf.Clamp(steering, -1f, 1f);
         brakeInput = Mathf.Clamp01(brake);
@@ -112,15 +146,17 @@ public sealed class CarController : MonoBehaviour
         brakeInput = 0f;
         handbrakeInput = false;
         driftHoldTimer = 0f;
+        driftBlend = 0f;
         CurrentState = DriveState.Normal;
 
+        GetComponent<CarPresentation>()?.ClearTrails();
         body.position = position;
         body.rotation = rotation;
         body.linearVelocity = Vector3.zero;
         body.angularVelocity = Vector3.zero;
     }
 
-    private void ReadInput()
+    private void ReadInput(float deltaTime)
     {
         float targetThrottle = 0f;
         float targetSteering = 0f;
@@ -151,7 +187,7 @@ public sealed class CarController : MonoBehaviour
             }
 
             targetHandbrake = keyboard.spaceKey.isPressed;
-            targetBrake = targetHandbrake || keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed ? 1f : 0f;
+            targetBrake = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed ? 1f : 0f;
         }
 
         Gamepad gamepad = Gamepad.current;
@@ -165,9 +201,10 @@ public sealed class CarController : MonoBehaviour
             targetHandbrake |= gamepad.buttonSouth.isPressed;
         }
 
-        throttleInput = Mathf.MoveTowards(throttleInput, Mathf.Clamp(targetThrottle, -1f, 1f), inputSmoothing * Time.deltaTime);
-        steeringInput = Mathf.MoveTowards(steeringInput, Mathf.Clamp(targetSteering, -1f, 1f), inputSmoothing * Time.deltaTime);
-        brakeInput = Mathf.MoveTowards(brakeInput, Mathf.Clamp01(targetBrake), inputSmoothing * Time.deltaTime);
+        // Handbrake loosens rear grip; the pedal remains a separate full-strength brake.
+        throttleInput = Mathf.MoveTowards(throttleInput, Mathf.Clamp(targetThrottle, -1f, 1f), inputSmoothing * deltaTime);
+        steeringInput = Mathf.MoveTowards(steeringInput, Mathf.Clamp(targetSteering, -1f, 1f), inputSmoothing * deltaTime);
+        brakeInput = Mathf.MoveTowards(brakeInput, Mathf.Clamp01(targetBrake), inputSmoothing * deltaTime);
         handbrakeInput = targetHandbrake;
     }
 
@@ -175,7 +212,9 @@ public sealed class CarController : MonoBehaviour
     {
         float speed = PlanarVelocity.magnitude;
         bool highSpeedTurn = speed >= driftStartSpeed && Mathf.Abs(steeringInput) >= driftSteerThreshold;
-        bool wantsDrift = handbrakeInput || highSpeedTurn;
+        // Keep a slide alive through countersteering without requiring another handbrake tap.
+        bool balancingSlide = IsDrifting && speed >= 5f && LateralSpeed > 1f && Mathf.Abs(steeringInput) > 0.1f;
+        bool wantsDrift = speed >= 1f && (handbrakeInput || highSpeedTurn || balancingSlide);
 
         if (wantsDrift)
         {
@@ -186,7 +225,7 @@ public sealed class CarController : MonoBehaviour
             driftHoldTimer = Mathf.Max(0f, driftHoldTimer - Time.fixedDeltaTime);
         }
 
-        CurrentState = driftHoldTimer > 0f ? DriveState.Drift : DriveState.Normal;
+        CurrentState = speed >= 1f && (wantsDrift || driftHoldTimer > 0f) ? DriveState.Drift : DriveState.Normal;
     }
 
     private void ApplyMotor()
@@ -205,18 +244,23 @@ public sealed class CarController : MonoBehaviour
 
     private void ApplyBrakes()
     {
-        if (brakeInput <= 0f)
+        float requestedDeceleration = Mathf.Max(brakeInput * brakeDeceleration,
+            handbrakeInput ? handbrakeDeceleration : 0f);
+        if (requestedDeceleration <= 0f)
         {
             return;
         }
 
         Vector3 planarVelocity = PlanarVelocity;
-        if (planarVelocity.sqrMagnitude < 0.01f)
+        float speed = planarVelocity.magnitude;
+        if (speed <= Mathf.Epsilon)
         {
             return;
         }
 
-        body.AddForce(-planarVelocity.normalized * (brakeInput * brakeDeceleration), ForceMode.Acceleration);
+        // A brake can remove momentum, but must never accelerate through zero.
+        float deceleration = Mathf.Min(requestedDeceleration, speed / Time.fixedDeltaTime);
+        body.AddForce(-planarVelocity.normalized * deceleration, ForceMode.Acceleration);
     }
 
     private void ApplySteering()
@@ -225,7 +269,17 @@ public sealed class CarController : MonoBehaviour
         float speedFactor = Mathf.Lerp(lowSpeedSteerFactor, 1f, Mathf.InverseLerp(0f, fullSteerSpeed, speed));
         float brakeFactor = Mathf.Lerp(1f, brakeSteerMultiplier, brakeInput);
         float driftFactor = IsDrifting ? driftSteeringMultiplier : 1f;
-        float yawAcceleration = steeringInput * steeringAcceleration * speedFactor * brakeFactor * driftFactor;
+        // Reverse travel reverses yaw; fade to zero at rest instead of spinning in place.
+        float travelDirection = Mathf.Clamp(ForwardSpeed, -1f, 1f);
+        float yawAcceleration = steeringInput * steeringAcceleration * speedFactor * brakeFactor * driftFactor * travelDirection;
+
+        // Reduce steering further into a large slide, while retaining full countersteer authority.
+        if (IsDrifting && ForwardSpeed > 3f)
+        {
+            float slipAngle = Vector3.SignedAngle(PlanarVelocity, transform.forward, transform.up);
+            if (Mathf.Sign(steeringInput) == Mathf.Sign(slipAngle))
+                yawAcceleration *= Mathf.Lerp(1f, 0.25f, Mathf.InverseLerp(30f, 60f, Mathf.Abs(slipAngle)));
+        }
 
         body.AddTorque(transform.up * yawAcceleration, ForceMode.Acceleration);
     }
@@ -233,7 +287,9 @@ public sealed class CarController : MonoBehaviour
     private void ApplyLateralGrip()
     {
         Vector3 lateralVelocity = transform.right * Vector3.Dot(body.linearVelocity, transform.right);
-        float grip = IsDrifting ? driftLateralGrip : normalLateralGrip;
+        driftBlend = Mathf.MoveTowards(driftBlend, IsDrifting ? 1f : 0f,
+            Time.fixedDeltaTime * (IsDrifting ? 8f : gripRecoveryRate));
+        float grip = Mathf.Lerp(normalLateralGrip, driftLateralGrip, driftBlend);
 
         body.AddForce(-lateralVelocity * grip, ForceMode.Acceleration);
     }

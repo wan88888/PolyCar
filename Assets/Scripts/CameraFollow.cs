@@ -17,9 +17,12 @@ public sealed class CameraFollow : MonoBehaviour
 
     private Vector3 followVelocity;
     private bool menuMode;
+    private CarController car;
+    private Camera viewCamera;
 
     private void Start()
     {
+        viewCamera = GetComponent<Camera>();
         if (target == null)
         {
             CarController car = FindFirstObjectByType<CarController>();
@@ -38,7 +41,10 @@ public sealed class CameraFollow : MonoBehaviour
         }
 
         float deltaTime = menuMode ? Time.unscaledDeltaTime : Time.deltaTime;
-        float activeDistance = menuMode ? menuDistance : followDistance;
+        if (car == null) car = target.GetComponent<CarController>();
+        float speed = car != null ? Mathf.Clamp01(car.SpeedKmh / 95f) : 0f;
+        if (viewCamera != null) viewCamera.fieldOfView = Mathf.Lerp(viewCamera.fieldOfView, menuMode ? 55f : Mathf.Lerp(60f,68f,speed), deltaTime * 3f);
+        float activeDistance = menuMode ? menuDistance : followDistance + speed * 1.5f;
         float activeHeight = menuMode ? menuHeight : followHeight;
         float yaw = menuMode ? Mathf.Sin(Time.unscaledTime * menuOrbitSpeed) * menuOrbitDegrees : 0f;
         Vector3 followDirection = Quaternion.Euler(0f, yaw, 0f) * target.forward;
@@ -59,6 +65,7 @@ public sealed class CameraFollow : MonoBehaviour
     public void SetTarget(Transform newTarget)
     {
         target = newTarget;
+        car = newTarget != null ? newTarget.GetComponent<CarController>() : null;
         followVelocity = Vector3.zero;
     }
 

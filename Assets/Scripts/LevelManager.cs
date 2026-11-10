@@ -7,6 +7,10 @@ public sealed class LevelManager : MonoBehaviour
 {
     public struct LevelCompletionData
     {
+        public float Seconds;
+        public float BestSeconds;
+        public string Medal;
+        public int Recoveries;
         public int RouteIndex;
         public string RouteName;
         public int CollectedCoins;
@@ -51,6 +55,17 @@ public sealed class LevelManager : MonoBehaviour
     [SerializeField] private Color guidanceColor = new Color(0.45f, 0.95f, 1f);
     [SerializeField] private Color guidanceCloseColor = new Color(1f, 0.74f, 0.22f);
 
+    public enum RunPhase { Ready, Countdown, Racing, Finished }
+    public RunPhase Phase { get; private set; }
+    public float ElapsedSeconds { get; private set; }
+    public int PassedGates { get; private set; }
+    public int Recoveries { get; private set; }
+    public bool RunInProgress => Phase == RunPhase.Countdown || Phase == RunPhase.Racing;
+    private RaceCourse course;
+    private float countdown;
+    private float messageUntil;
+    private float overturnedTime;
+    private Vector3 previousPosition;
     private int collectedCoins;
     private int activeTargetCoins = 10;
     private bool levelComplete;
@@ -64,6 +79,7 @@ public sealed class LevelManager : MonoBehaviour
     public int TargetCoins => activeTargetCoins;
     public bool LevelComplete => levelComplete;
     public int CurrentLevelIndex => currentLevelIndex;
+    public RaceCourse GetCourse(int index) => levels != null && index >= 0 && index < levels.Length && levels[index].root != null ? levels[index].root.GetComponent<RaceCourse>() : null;
     public int LevelCount => levels != null ? levels.Length : 0;
     public event Action<LevelCompletionData> LevelCompleted;
 
@@ -95,32 +111,19 @@ public sealed class LevelManager : MonoBehaviour
 
     private void Update()
     {
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard != null)
-        {
-            if (keyboard.rKey.wasPressedThisFrame)
-            {
-                RestartCurrentLevel();
-            }
-
-            if (levelComplete && keyboard.nKey.wasPressedThisFrame)
-            {
-                LoadNextLevel();
-            }
-        }
-
+        TickRun(Time.deltaTime);
         UpdateGuidance();
     }
 
     public void CollectCoin(CoinPickup coin)
     {
-        if (levelComplete)
+        if (levelComplete || Phase != RunPhase.Racing)
         {
             return;
         }
 
         collectedCoins += coin != null ? coin.Value : 1;
-        if (collectedCoins >= activeTargetCoins)
+        if (course == null && collectedCoins >= activeTargetCoins)
         {
             ClearGuidanceTarget();
             CompleteLevel();
@@ -140,14 +143,13 @@ public sealed class LevelManager : MonoBehaviour
 
     public void AwardBonusCoins(int amount, string reason)
     {
-        if (amount <= 0 || levelComplete)
+        if (amount <= 0 || levelComplete || Phase != RunPhase.Racing)
         {
             return;
         }
 
-        SaveManager.AddCoins(amount);
         bonusCoinsThisRun += amount;
-        SetMessage($"{reason}\nBonus +{amount} coins");
+        SetMessage($"+{amount} Coins");
         UpdateUi();
     }
 
@@ -158,15 +160,11 @@ public sealed class LevelManager : MonoBehaviour
             return;
         }
 
-        int paidPenalty = Mathf.Min(Mathf.Max(0, coinPenalty), SaveManager.TotalCoins);
-        if (paidPenalty > 0)
-        {
-            SaveManager.TrySpendCoins(paidPenalty);
-            penaltyCoinsThisRun += paidPenalty;
-        }
+        if (Phase != RunPhase.Racing) return;
+        int paidPenalty = Mathf.Max(0, coinPenalty);
+        penaltyCoinsThisRun += paidPenalty;
 
-        string penaltyText = paidPenalty > 0 ? $"Penalty -{paidPenalty} coins" : "No coins lost";
-        SetMessage($"Obstacle hit\n{penaltyText}\nDrift combo broken");
+        SetMessage(paidPenalty > 0 ? $"Collision · -{paidPenalty} Coins" : "Combo Lost");
         UpdateUi();
     }
 
@@ -289,6 +287,13 @@ public sealed class LevelManager : MonoBehaviour
         bonusCoinsThisRun = 0;
         penaltyCoinsThisRun = 0;
         levelComplete = false;
+        Phase = RunPhase.Ready;
+        ElapsedSeconds = 0f;
+        PassedGates = 0;
+        Recoveries = 0;
+        overturnedTime = 0f;
+        course = activeLevel.root != null ? activeLevel.root.GetComponent<RaceCourse>() : null;
+        if (playerCar != null) playerCar.SetControlsEnabled(false);
         if (gameManager == null)
         {
             gameManager = FindFirstObjectByType<GameManager>();
@@ -311,7 +316,7 @@ public sealed class LevelManager : MonoBehaviour
 
         SelectNextTargetCoin();
         UpdateUi();
-        SetMessage($"{GetCurrentLevelName()}\nCollect the coins on the road");
+        SetMessage(string.Empty);
     }
 
     private int ResetCoins(Transform levelRoot)
@@ -339,10 +344,14 @@ public sealed class LevelManager : MonoBehaviour
         }
 
         levelComplete = true;
-        SaveManager.AddCoins(collectedCoins);
+        Phase = RunPhase.Finished;
+        if (playerCar != null) playerCar.SetControlsEnabled(false);
         SaveManager.UnlockRoute(currentLevelIndex);
         int driftScore = gameManager != null ? gameManager.TotalDriftScore : 0;
-        int earnedCoins = Mathf.Max(0, collectedCoins + bonusCoinsThisRun - penaltyCoinsThisRun);
+        int earnedCoins = Mathf.Max(0, collectedCoins + bonusCoinsThisRun + 10 - penaltyCoinsThisRun);
+        SaveManager.AddCoins(earnedCoins);
+        SaveManager.RecordTime(currentLevelIndex, ElapsedSeconds);
+        string medal = course == null ? "BRONZE" : RaceCourse.Medal(ElapsedSeconds, driftScore, Recoveries, course.goldTime, course.silverScore, course.goldScore);
         SaveManager.RecordRouteResult(currentLevelIndex, earnedCoins, driftScore, out bool firstCompletion, out bool newBestCoins, out bool newBestDrift);
 
         int nextLevelIndex = currentLevelIndex + 1;
@@ -360,6 +369,10 @@ public sealed class LevelManager : MonoBehaviour
         SetGuidanceText("Route complete");
         LevelCompleted?.Invoke(new LevelCompletionData
         {
+            Seconds = ElapsedSeconds,
+            BestSeconds = SaveManager.GetBestTime(currentLevelIndex),
+            Medal = medal,
+            Recoveries = Recoveries,
             RouteIndex = currentLevelIndex,
             RouteName = GetCurrentLevelName(),
             CollectedCoins = collectedCoins,
@@ -382,13 +395,13 @@ public sealed class LevelManager : MonoBehaviour
         if (levelText != null)
         {
             levelText.text = LevelCount > 0
-                ? $"Route {currentLevelIndex + 1}/{LevelCount}: {GetCurrentLevelName()}"
+                ? $"{currentLevelIndex + 1:00}  {UiCopy.Title(GetCurrentLevelName())}"
                 : "Route: None";
         }
 
         if (coinText != null)
         {
-            coinText.text = $"Coins: {Mathf.Min(collectedCoins, activeTargetCoins)} / {activeTargetCoins}";
+            coinText.text = $"{collectedCoins}/{activeTargetCoins}";
         }
 
         if (totalCoinsText != null)
@@ -411,7 +424,9 @@ public sealed class LevelManager : MonoBehaviour
     {
         if (messageText != null)
         {
-            messageText.text = message;
+            messageText.text = UiCopy.Title(message);
+            messageText.fontSize = Phase == RunPhase.Countdown ? 76 : 28;
+            messageUntil = Time.time + 1.7f;
         }
     }
 
@@ -457,6 +472,16 @@ public sealed class LevelManager : MonoBehaviour
         if (levelComplete)
         {
             SetGuidanceText("Route complete", guidanceCloseColor);
+            return;
+        }
+
+        if (course != null && course.gates.Length > 0)
+        {
+            int total = course.gates.Length * course.laps;
+            Transform gate = course.gates[PassedGates % course.gates.Length];
+            float gateDistance = playerCar != null ? Vector3.Distance(playerCar.transform.position, gate.position) : 0f;
+            string gateDirection = playerCar != null ? GetDirectionLabel(playerCar.transform.forward, gate.position - playerCar.transform.position) : "Ahead";
+            SetGuidanceText($"{(int)(ElapsedSeconds / 60):00}:{ElapsedSeconds % 60:00.0}\nGate {Mathf.Min(PassedGates + 1, total)}/{total} · {gateDistance:0}m {gateDirection}");
             return;
         }
 
@@ -537,7 +562,7 @@ public sealed class LevelManager : MonoBehaviour
     {
         if (guidanceText != null)
         {
-            guidanceText.text = message;
+            guidanceText.text = UiCopy.Title(message);
             guidanceText.color = color;
         }
     }
@@ -545,5 +570,75 @@ public sealed class LevelManager : MonoBehaviour
     public void SetPlayerCar(CarController car)
     {
         playerCar = car;
+        if (playerCar != null) playerCar.SetControlsEnabled(Phase == RunPhase.Racing);
+    }
+
+    public void BeginRun()
+    {
+        if (RunInProgress) return;
+        if (levelComplete) RestartCurrentLevel();
+        Phase = RunPhase.Countdown;
+        countdown = 3f;
+        if (course != null) course.HighlightGate(0);
+        if (playerCar != null) playerCar.SetControlsEnabled(false);
+        SetMessage("3");
+    }
+
+    private void TickRun(float deltaTime)
+    {
+        if (playerCar == null || deltaTime <= 0f) return;
+        if (Phase == RunPhase.Countdown)
+        {
+            countdown -= deltaTime;
+            SetMessage(countdown > 0f
+                ? $"{Mathf.CeilToInt(countdown)}"
+                : "Go!");
+            if (countdown <= 0f)
+            {
+                Phase = RunPhase.Racing;
+                previousPosition = playerCar.transform.position;
+                playerCar.SetControlsEnabled(true);
+            }
+            return;
+        }
+        if (Phase != RunPhase.Racing) return;
+        ElapsedSeconds += deltaTime;
+        if (messageText != null && Time.time > messageUntil) messageText.text = string.Empty;
+        Vector3 position = playerCar.transform.position;
+        overturnedTime = Vector3.Dot(playerCar.transform.up, Vector3.up) < 0.25f ? overturnedTime + deltaTime : 0f;
+        if (position.y < -4f || overturnedTime > 2f)
+        {
+            RecoverCar();
+            return;
+        }
+        if (course != null && course.gates.Length > 0)
+        {
+            Transform gate = course.gates[PassedGates % course.gates.Length];
+            if (RaceCourse.CrossedGate(previousPosition, position, gate, course.gateHalfWidth))
+            {
+                PassedGates++;
+                course.HighlightGate(PassedGates % course.gates.Length);
+                AudioManager.Instance?.PlayCoin();
+                if (PassedGates >= course.gates.Length * course.laps) CompleteLevel();
+                // Gate progress updates in the compact HUD; no repeated center-screen toast.
+            }
+        }
+        previousPosition = position;
+    }
+
+    public void RecoverCar()
+    {
+        if (Phase != RunPhase.Racing || playerCar == null) return;
+        Transform recovery = course != null && PassedGates > 0
+            ? course.gates[(PassedGates - 1) % course.gates.Length] : levels[currentLevelIndex].spawnPoint;
+        Vector3 position = recovery.position + Vector3.up * 0.6f;
+        if (PassedGates > 0) position += recovery.forward * 3f;
+        playerCar.ResetCar(position, recovery.rotation);
+        previousPosition = position;
+        overturnedTime = 0f;
+        Recoveries++;
+        ElapsedSeconds += 3f;
+        gameManager?.RegisterObstacleHit(0);
+        SetMessage("Recovered · +3s");
     }
 }

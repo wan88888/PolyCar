@@ -1,78 +1,37 @@
-# PolyCar Optimization Roadmap
+# PolyCar development status
 
-## Current Priorities
+## Harbor vertical slice implemented
 
-1. Menu and game-state flow
-   - Home should be the clear entry point.
-   - Gameplay needs a visible return-to-menu path.
-   - Escape should close popups or return to Home.
-   - Status: implemented.
+- Countdown, ordered checkpoints, two laps, timed finish and bronze/silver/gold evaluation.
+- Optional coin collection and completion-only reward settlement.
+- Pause/resume/restart/leave, coherent result shortcuts, penalized manual and automatic recovery.
+- Mid-run vehicle purchase/selection disabled; welcome reward persisted; real personal records replace placeholder competitors.
+- Grounded vehicle forces, lower speed/acceleration tuning and more stable yaw damping.
+- Three-second combo expiry, collision invalidation and actual-slip scoring.
+- Continuous harbor road, curbs, gates, container yard, warehouse, cranes, lamps and waterfront.
+- Faceted vehicle meshes, wheel/brake/body feedback, smoke, tire trails and live garage preview.
+- Compact driving HUD and independent timing/score layout.
 
-2. Home / Shop / Rank visual polish
-   - Replace engineering-looking panels with a stronger low-poly racing style.
-   - Add a vehicle hero area on Home.
-   - Add readable vehicle cards, stat bars, lock states, and selected states in Shop.
-   - Make Rank look like a leaderboard instead of plain text.
-   - Status: implemented.
+## Validation scope
 
-3. Level selection and progression
-   - Add a Level Select screen instead of only pressing N after completion.
-   - Lock later routes until earlier routes are completed.
-   - Save highest unlocked route.
-   - Status: implemented.
+Automated tests and deterministic physics route following are distinct from human playtesting. The harbor path follower completes 24 gates in about 69 seconds with the starter tune. UI renders are reviewed at 1280x720 and 1024x768. Keep the exact latest test count and build evidence in the task report rather than claiming every possible bug is covered.
 
-4. Route guidance
-   - Add next-coin direction indicator.
-   - Add route arrows/checkpoints on the road.
-   - Highlight the active route objective.
-   - Status: implemented.
+## Next work
 
-5. Driving feel and drift reward
-   - Add drift score and combo multiplier.
-   - Reward clean drifts with bonus coins.
-   - Tune each car so unlocks feel meaningfully different.
-   - Status: implemented.
+1. Human playtest keyboard steering, drift entry/exit and difficulty; tune medal thresholds from actual runs.
+2. Improve authored engine/tire/crash audio and introduce a short interactive drift lesson.
+3. Add saved personal ghost replays and checkpoint split-time comparison.
+4. Redesign and balance routes 2–10; imported scenery now covers all routes, but their original short track layouts are retained.
+5. Verify gamepad navigation, accessible typography/contrast, ultrawide and lower resolutions, and target-device performance.
+6. Move remaining generated menu layouts into reusable UI prefabs once art direction stabilizes.
 
-6. Collision and obstacle feedback
-   - Add hit feedback when touching barriers/cones.
-   - Add small time/coin penalties or combo break.
-   - Add obstacle variation by route.
-   - Status: implemented.
+The current delivery is a playable first-level slice, not a finished ten-level release.
 
-7. Audio and settings
-   - Add engine, coin, button, crash, and drift sounds.
-   - Wire Music/Sound toggles to actual audio mixers.
-   - Status: implemented.
+## External art integration completed
 
-8. Save data and economy
-   - Save completed routes, best coin totals, selected vehicle, unlocked vehicles, settings, and daily reward state.
-   - Balance car prices against total coin rewards.
-   - Status: implemented.
-
-9. Performance and maintainability
-   - Move procedural UI and level data toward reusable prefabs or ScriptableObjects.
-   - Avoid generating large UI hierarchies by code once visual direction stabilizes.
-   - Runtime cleanup: centralized economy constants, cached manager references, and material property blocks for feedback visuals.
-   - Status: implemented.
-
-10. Presentation polish
-    - Add camera intro on Home.
-    - Add transitions between Home, Shop, Rank, and gameplay.
-    - Add completion screen after each route.
-    - Status: implemented.
-
-## Implementation Order
-
-The best order is to improve the largest player-facing friction first:
-
-```text
-Menu/game-state flow
--> UI visual polish
--> level select/progression
--> route guidance
--> drift scoring
--> audio/feedback
--> save/economy
--> performance/code cleanup
--> transitions/completion
-```
+- Verified a first-car/first-route sample before applying to all four cars and ten routes.
+- Integrated licensed Kenney vehicle, industrial, racing-facility and nature models with source/license records.
+- Converted source materials to URP with pack-specific atlases; normalized pivots and scale.
+- Preserved drivetrain tuning, chassis colliders, ordered gates and existing obstacle colliders.
+- Added wheel bind rotations and per-vehicle rear tire effect positions; adapted pickup/hit colors to URP.
+- Retained the earlier Harbor build for comparison; the asset-upgraded player is built separately.

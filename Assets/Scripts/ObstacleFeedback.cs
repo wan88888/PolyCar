@@ -4,7 +4,7 @@ using UnityEngine;
 [RequireComponent(typeof(Collider))]
 public sealed class ObstacleFeedback : MonoBehaviour
 {
-    private static readonly int ColorId = Shader.PropertyToID("_Color");
+    private static readonly int ColorId = Shader.PropertyToID("_BaseColor");
 
     [SerializeField, Min(0)] private int coinPenalty = 1;
     [SerializeField, Min(0.1f)] private float hitCooldown = 0.65f;
@@ -103,7 +103,7 @@ public sealed class ObstacleFeedback : MonoBehaviour
         for (int i = 0; i < renderers.Length; i++)
         {
             Material material = renderers[i].sharedMaterial;
-            normalColors[i] = material.HasProperty("_Color") ? material.color : Color.white;
+            normalColors[i] = material.HasProperty("_BaseColor") ? material.GetColor("_BaseColor") : Color.white;
         }
     }
 

@@ -12,8 +12,9 @@ public static class SaveManager
     private const string LastDailyClaimKey = "PolyCar_LastDailyClaim";
     private const string UnlockedPrefix = "PolyCar_Unlocked_";
     private const string RouteCompletedPrefix = "PolyCar_RouteCompleted_";
-    private const string BestRouteCoinsPrefix = "PolyCar_BestRouteCoins_";
-    private const string BestRouteDriftPrefix = "PolyCar_BestRouteDrift_";
+    // Revised geometry gets separate records; legacy records, wallet and unlocks are retained.
+    private const string BestRouteCoinsPrefix = "PolyCar_v2_BestRouteCoins_";
+    private const string BestRouteDriftPrefix = "PolyCar_v2_BestRouteDrift_";
 
     public static int TotalCoins => PlayerPrefs.GetInt(TotalCoinsKey, 0);
     public static int HighestUnlockedRouteIndex => Mathf.Max(0, PlayerPrefs.GetInt(HighestUnlockedRouteKey, 0));
@@ -183,6 +184,24 @@ public static class SaveManager
     {
         PlayerPrefs.SetString(LastDailyClaimKey, date.ToString("yyyyMMdd"));
         PlayerPrefs.Save();
+    }
+
+    public static float GetBestTime(int route) => PlayerPrefs.GetFloat("PolyCar_v2_BestTime_" + route, 0f);
+
+    public static void RecordTime(int route, float seconds)
+    {
+        float best = GetBestTime(route);
+        if (seconds <= 0f || (best > 0f && seconds >= best)) return;
+        PlayerPrefs.SetFloat("PolyCar_v2_BestTime_" + route, seconds);
+        PlayerPrefs.Save();
+    }
+
+    public static bool WelcomeRewardClaimed => PlayerPrefs.GetInt("PolyCar_WelcomeReward", 0) == 1;
+    public static void ClaimWelcomeReward(int amount)
+    {
+        if (WelcomeRewardClaimed) return;
+        PlayerPrefs.SetInt("PolyCar_WelcomeReward", 1);
+        AddCoins(amount);
     }
 
     public static void SetMusicEnabled(bool enabled)

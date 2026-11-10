@@ -3,7 +3,7 @@ using UnityEngine;
 [RequireComponent(typeof(Collider))]
 public sealed class CoinPickup : MonoBehaviour
 {
-    private static readonly int ColorId = Shader.PropertyToID("_Color");
+    private static readonly int ColorId = Shader.PropertyToID("_BaseColor");
 
     [SerializeField, Min(1)] private int value = 1;
     [SerializeField, Min(0f)] private float rotationSpeed = 150f;
@@ -128,7 +128,7 @@ public sealed class CoinPickup : MonoBehaviour
         for (int i = 0; i < renderers.Length; i++)
         {
             Material material = renderers[i].sharedMaterial;
-            normalColors[i] = material.HasProperty("_Color") ? material.color : Color.white;
+            normalColors[i] = material.HasProperty("_BaseColor") ? material.GetColor("_BaseColor") : Color.white;
         }
     }
 }

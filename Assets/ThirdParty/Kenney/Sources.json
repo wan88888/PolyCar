@@ -1,0 +1,103 @@
+[
+  {
+    "pack": "car-kit",
+    "folder": "Cars",
+    "source": "https://kenney.nl/assets/car-kit",
+    "license": "CC0-1.0",
+    "archive_sha256": "fac7dacac5c7874348cf19729af3ef205f3d366493edaf0a827d93f4fdf3d0c4",
+    "models": [
+      "sedan-sports",
+      "hatchback-sports",
+      "suv",
+      "race",
+      "wheel-default",
+      "wheel-racing",
+      "wheel-truck",
+      "cone",
+      "cone-flat"
+    ]
+  },
+  {
+    "pack": "city-kit-industrial",
+    "folder": "Industrial",
+    "source": "https://kenney.nl/assets/city-kit-industrial",
+    "license": "CC0-1.0",
+    "archive_sha256": "5b381164e5760f3830a2dbee43b972deee38b2a695d091b56e238ab2910c96d2",
+    "models": [
+      "building-a",
+      "building-b",
+      "building-c",
+      "building-d",
+      "building-e",
+      "building-f",
+      "building-g",
+      "building-h",
+      "building-i",
+      "building-j",
+      "building-k",
+      "building-l",
+      "building-m",
+      "building-n",
+      "building-o",
+      "shipping-container-a",
+      "shipping-container-b",
+      "shipping-container-c",
+      "detail-tank",
+      "detail-tank-large",
+      "water-tower",
+      "chimney-large",
+      "windmill",
+      "solar-panel-landscape-group"
+    ]
+  },
+  {
+    "pack": "racing-kit",
+    "folder": "Racing",
+    "source": "https://kenney.nl/assets/racing-kit",
+    "license": "CC0-1.0",
+    "archive_sha256": "8a71ea16219315a01d00d5a90c4f6b5c090faddbc56d80ecf727e2b3b853c6c0",
+    "models": [
+      "barrierRed",
+      "barrierWhite",
+      "barrierWall",
+      "pylon",
+      "lightPostLarge",
+      "lightPostModern",
+      "grandStandCovered",
+      "grandStand",
+      "pitsGarage",
+      "pitsOffice",
+      "overhead",
+      "overheadLights",
+      "flagCheckers",
+      "billboard",
+      "billboardLow",
+      "tent",
+      "tentClosed",
+      "rail",
+      "fenceStraight"
+    ]
+  },
+  {
+    "pack": "nature-kit",
+    "folder": "Nature",
+    "source": "https://kenney.nl/assets/nature-kit",
+    "license": "CC0-1.0",
+    "archive_sha256": "fa7974a0d342bfe63c38664ba9f8ec1a4aab8ea25f099bdc56870e33588c4d9d",
+    "models": [
+      "tree_pineTallA",
+      "tree_pineTallB",
+      "tree_oak",
+      "tree_palm",
+      "tree_default_fall",
+      "rock_largeA",
+      "rock_largeB",
+      "rock_largeC",
+      "rock_tallA",
+      "rock_tallB",
+      "plant_bush",
+      "cactus_tall",
+      "grass_large"
+    ]
+  }
+]

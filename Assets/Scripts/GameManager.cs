@@ -24,6 +24,7 @@ public sealed class GameManager : MonoBehaviour
     private float totalDriftScore;
     private float comboMultiplier = 1f;
     private float driftTimer;
+    private float comboIdleTime;
     private bool driftHadCollision;
     private bool wasDrifting;
 
@@ -76,7 +77,8 @@ public sealed class GameManager : MonoBehaviour
         }
 
         UpdateDrivingHud();
-        UpdateDriftScoring(Time.deltaTime);
+        if (levelManager == null || (levelManager.Phase == LevelManager.RunPhase.Racing && Time.deltaTime > 0f))
+            UpdateDriftScoring(Time.deltaTime);
     }
 
     public void SetPlayerCar(CarController car)
@@ -95,6 +97,7 @@ public sealed class GameManager : MonoBehaviour
 
     public void ResetRunFeedback()
     {
+        comboIdleTime = 0f;
         currentDriftScore = 0f;
         totalDriftScore = 0f;
         comboMultiplier = 1f;
@@ -117,7 +120,7 @@ public sealed class GameManager : MonoBehaviour
 
     public void RegisterObstacleHit(int coinPenalty)
     {
-        if (wasDrifting || currentDriftScore > 1f)
+        if (wasDrifting || currentDriftScore > 1f || (playerCar != null && playerCar.IsDrifting))
         {
             currentDriftScore = 0f;
             driftTimer = 0f;
@@ -152,27 +155,41 @@ public sealed class GameManager : MonoBehaviour
 
         if (speedText != null)
         {
-            speedText.text = $"{playerCar.SpeedKmh:0} km/h";
+            speedText.text = $"{playerCar.SpeedKmh:0}";
         }
 
         if (driftStateText != null)
         {
-            driftStateText.text = playerCar.IsDrifting ? "Drift" : "Normal";
+            driftStateText.text = playerCar.IsDrifting ? "Drifting" : string.Empty;
             driftStateText.color = playerCar.IsDrifting ? driftColor : normalColor;
         }
     }
 
     private void UpdateDriftScoring(float deltaTime)
     {
-        bool isScoringDrift = playerCar != null && playerCar.IsDrifting && playerCar.SpeedKmh >= 18f;
+        // A collision invalidates this entire drift, including frames after the hit.
+        // Only leaving the drift state allows the next clean attempt to start.
+        if (driftHadCollision)
+        {
+            if (playerCar != null && playerCar.IsDrifting)
+            {
+                UpdateDriftScoreText();
+                return;
+            }
+
+            driftHadCollision = false;
+        }
+
+        bool isScoringDrift = playerCar != null && playerCar.IsDrifting && playerCar.SpeedKmh >= 18f && playerCar.LateralSpeed >= 0.5f;
         if (isScoringDrift)
         {
+            comboIdleTime = 0f;
             if (!wasDrifting)
             {
                 StartDriftScore();
             }
 
-            float slipBonus = Mathf.Clamp(playerCar.LateralSpeed, 0.5f, 9f);
+            float slipBonus = Mathf.Min(playerCar.LateralSpeed, 9f);
             float speedBonus = Mathf.InverseLerp(18f, 95f, playerCar.SpeedKmh) + 0.65f;
             currentDriftScore += slipBonus * speedBonus * scoreRate * comboMultiplier * deltaTime * 10f;
             driftTimer += deltaTime;
@@ -182,6 +199,11 @@ public sealed class GameManager : MonoBehaviour
             FinishDriftScore();
         }
 
+        if (!isScoringDrift)
+        {
+            comboIdleTime += deltaTime;
+            if (comboIdleTime >= 3f) comboMultiplier = 1f;
+        }
         wasDrifting = isScoringDrift;
         UpdateDriftScoreText();
     }
@@ -231,7 +253,7 @@ public sealed class GameManager : MonoBehaviour
         }
 
         int visibleScore = Mathf.RoundToInt(totalDriftScore + currentDriftScore);
-        driftScoreText.text = $"Drift Score: {visibleScore}\nCombo x{comboMultiplier:0.0}";
+        driftScoreText.text = $"{visibleScore:N0}  ×{comboMultiplier:0.0}";
         driftScoreText.color = currentDriftScore > 1f ? driftColor : normalColor;
     }
 }

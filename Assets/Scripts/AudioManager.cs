@@ -165,7 +165,7 @@ public sealed class AudioManager : MonoBehaviour
 
     private void UpdateVehicleLoops()
     {
-        if (!soundEnabled || playerCar == null)
+        if (!soundEnabled || playerCar == null || Time.timeScale == 0f)
         {
             engineSource.volume = 0f;
             driftSource.volume = 0f;

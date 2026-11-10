@@ -89,6 +89,9 @@ public static class LowPolyDriftPrototypeBuilder
         public Button ShopTabButton;
         public Button RankTabButton;
         public Button LevelSelectBackButton;
+        public Button PreviousRoutePageButton;
+        public Button NextRoutePageButton;
+        public Text RoutePageText;
         public Button ShopBackButton;
         public Button RankBackButton;
         public Button CompletionNextButton;
@@ -141,9 +144,9 @@ public static class LowPolyDriftPrototypeBuilder
             new Vector3(1.2f, 0.55f, 1.35f),
             new CarTuning
             {
-                Acceleration = 18f,
+                Acceleration = 10f,
                 ReverseAcceleration = 10f,
-                MaxForwardSpeed = 42f,
+                MaxForwardSpeed = 24f,
                 MaxReverseSpeed = 12f,
                 SteeringAcceleration = 3.4f,
                 DriftStartSpeed = 12f,
@@ -162,15 +165,15 @@ public static class LowPolyDriftPrototypeBuilder
             new Vector3(1.35f, 0.45f, 1.2f),
             new CarTuning
             {
-                Acceleration = 18f,
+                Acceleration = 10f,
                 ReverseAcceleration = 10f,
-                MaxForwardSpeed = 43f,
+                MaxForwardSpeed = 25f,
                 MaxReverseSpeed = 12f,
-                SteeringAcceleration = 4.7f,
+                SteeringAcceleration = 3.8f,
                 DriftStartSpeed = 8f,
                 NormalLateralGrip = 6.8f,
-                DriftLateralGrip = 0.9f,
-                DriftSteeringMultiplier = 1.85f
+                DriftLateralGrip = 1.5f,
+                DriftSteeringMultiplier = 1.35f
             });
 
         GameObject rallyCarPrefab = CreateCarPrefab(
@@ -183,9 +186,9 @@ public static class LowPolyDriftPrototypeBuilder
             new Vector3(1.35f, 0.52f, 1.25f),
             new CarTuning
             {
-                Acceleration = 19f,
+                Acceleration = 11f,
                 ReverseAcceleration = 11f,
-                MaxForwardSpeed = 41f,
+                MaxForwardSpeed = 23f,
                 MaxReverseSpeed = 12f,
                 SteeringAcceleration = 3.9f,
                 DriftStartSpeed = 12f,
@@ -204,9 +207,9 @@ public static class LowPolyDriftPrototypeBuilder
             new Vector3(1.05f, 0.42f, 1.15f),
             new CarTuning
             {
-                Acceleration = 25f,
+                Acceleration = 13f,
                 ReverseAcceleration = 9f,
-                MaxForwardSpeed = 56f,
+                MaxForwardSpeed = 30f,
                 MaxReverseSpeed = 10f,
                 SteeringAcceleration = 2.8f,
                 DriftStartSpeed = 16f,
@@ -219,8 +222,13 @@ public static class LowPolyDriftPrototypeBuilder
 
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         RenderSettings.skybox = null;
+        RenderSettings.fog = true;
+        RenderSettings.fogMode = FogMode.Linear;
+        RenderSettings.fogColor = new Color(0.42f, 0.62f, 0.70f);
+        RenderSettings.fogStartDistance = 110f;
+        RenderSettings.fogEndDistance = 340f;
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.62f, 0.68f, 0.72f);
+        RenderSettings.ambientLight = new Color(0.50f, 0.60f, 0.68f);
 
         CreateGround(groundMaterial);
         BuiltLevel[] builtLevels = CreateRoadLevels(coinPrefab, roadMaterial, curbMaterial, routeGuideMaterial, checkpointMaterial, barrierMaterial, coneMaterial, tireMaterial);
@@ -242,6 +250,10 @@ public static class LowPolyDriftPrototypeBuilder
         CreateMainMenuUI(uiRefs, carGarage, levelManager, audioManager, cameraFollow);
         CreateEventSystem();
         CreateLighting();
+        if (ExternalArtBuilder.Available) ExternalArtBuilder.ApplyToLoadedScene();
+        ShopPreviewBuilder.BuildThumbnails();
+        RoutePreviewBuilder.BuildThumbnails();
+        MenuPolishBuilder.Apply(GameObject.Find("Canvas").transform);
 
         Selection.activeObject = AssetDatabase.LoadAssetAtPath<GameObject>(StarterCarPrefabPath);
         EditorSceneManager.MarkSceneDirty(scene);
@@ -306,6 +318,27 @@ public static class LowPolyDriftPrototypeBuilder
         return material;
     }
 
+    private static PhysicsMaterial GetOrCreateCarPhysicsMaterial()
+    {
+        const string path = "Assets/Materials/CarBody.physicMaterial";
+        PhysicsMaterial material = AssetDatabase.LoadAssetAtPath<PhysicsMaterial>(path);
+        if (material == null)
+        {
+            material = new PhysicsMaterial("CarBody");
+            AssetDatabase.CreateAsset(material, path);
+        }
+
+        // Tire grip is implemented by CarController. Box contact friction would
+        // otherwise fight the motor and multiply the speed-dependent downforce.
+        material.staticFriction = 0f;
+        material.dynamicFriction = 0f;
+        material.bounciness = 0f;
+        material.frictionCombine = PhysicsMaterialCombine.Minimum;
+        material.bounceCombine = PhysicsMaterialCombine.Minimum;
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
     private static GameObject CreateCarPrefab(
         string carName,
         string prefabPath,
@@ -321,11 +354,12 @@ public static class LowPolyDriftPrototypeBuilder
         Rigidbody body = root.AddComponent<Rigidbody>();
         body.mass = 900f;
         body.linearDamping = 0.05f;
-        body.angularDamping = 1.2f;
+        body.angularDamping = 3.5f;
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
         body.interpolation = RigidbodyInterpolation.Interpolate;
 
         BoxCollider collider = root.AddComponent<BoxCollider>();
+        collider.sharedMaterial = GetOrCreateCarPhysicsMaterial();
         collider.center = new Vector3(0f, 0.2f, 0f);
         collider.size = new Vector3(1.8f, 0.8f, 3.6f);
 
@@ -335,15 +369,9 @@ public static class LowPolyDriftPrototypeBuilder
         GameObject visuals = new GameObject("LowPolyVisuals");
         visuals.transform.SetParent(root.transform, false);
 
-        AddCube("Body", visuals.transform, new Vector3(0f, 0.15f, 0f), bodyScale, bodyMaterial);
-        AddCube("Cabin", visuals.transform, new Vector3(0f, 0.62f, -0.35f), cabinScale, glassMaterial);
-        AddCube("Nose", visuals.transform, new Vector3(0f, 0.28f, 1.2f), new Vector3(bodyScale.x * 0.8f, 0.28f, 0.75f), bodyMaterial);
-        AddCube("RearSpoiler", visuals.transform, new Vector3(0f, 0.62f, -1.55f), new Vector3(bodyScale.x * 0.85f, 0.12f, 0.18f), bodyMaterial);
-
-        AddWheel("FrontWheel_L", visuals.transform, new Vector3(-0.95f, -0.18f, 1.05f), tireMaterial);
-        AddWheel("FrontWheel_R", visuals.transform, new Vector3(0.95f, -0.18f, 1.05f), tireMaterial);
-        AddWheel("RearWheel_L", visuals.transform, new Vector3(-0.95f, -0.18f, -1.1f), tireMaterial);
-        AddWheel("RearWheel_R", visuals.transform, new Vector3(0.95f, -0.18f, -1.1f), tireMaterial);
+        bodyMaterial.SetFloat("_Smoothness", 0.65f);
+        bodyMaterial.SetFloat("_Metallic", 0.3f);
+        HarborArtBuilder.Car(visuals.transform, carName, bodyMaterial, glassMaterial, tireMaterial, bodyScale);
 
         PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
         Object.DestroyImmediate(root);
@@ -396,6 +424,7 @@ public static class LowPolyDriftPrototypeBuilder
         coin.name = "Coin";
         coin.transform.localScale = new Vector3(0.45f, 0.08f, 0.45f);
         coin.GetComponent<Renderer>().sharedMaterial = coinMaterial;
+        coin.GetComponent<Collider>().isTrigger = true;
         coin.AddComponent<CoinPickup>();
 
         PrefabUtility.SaveAsPrefabAsset(coin, CoinPrefabPath);
@@ -407,6 +436,7 @@ public static class LowPolyDriftPrototypeBuilder
     {
         GameObject ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
         ground.name = "GrassGround";
+        ground.transform.position = new Vector3(0f,-0.1f,0f);
         ground.transform.localScale = new Vector3(8f, 1f, 8f);
         ground.GetComponent<Renderer>().sharedMaterial = groundMaterial;
     }
@@ -422,228 +452,9 @@ public static class LowPolyDriftPrototypeBuilder
         Material tireMaterial)
     {
         GameObject mapsRoot = new GameObject("LevelMaps");
-        LevelSpec[] specs =
-        {
-            new LevelSpec
-            {
-                DisplayName = "Harbor Loop",
-                TargetCoins = 10,
-                RoadWidth = 5.2f,
-                ObstacleCount = 0,
-                RoutePoints = new[]
-                {
-                    Point(-12f, -7f),
-                    Point(-2f, -8f),
-                    Point(8f, -5f),
-                    Point(11f, 2f),
-                    Point(5f, 9f),
-                    Point(-6f, 8f),
-                    Point(-12f, 2f),
-                    Point(-12f, -7f)
-                }
-            },
-            new LevelSpec
-            {
-                DisplayName = "S-Curve Sprint",
-                TargetCoins = 12,
-                RoadWidth = 4.9f,
-                ObstacleCount = 6,
-                RoutePoints = new[]
-                {
-                    Point(-15f, -10f),
-                    Point(-8f, -5f),
-                    Point(-12f, 1f),
-                    Point(-4f, 7f),
-                    Point(4f, 4f),
-                    Point(0f, -2f),
-                    Point(8f, -7f),
-                    Point(15f, -3f)
-                }
-            },
-            new LevelSpec
-            {
-                DisplayName = "Switchback Climb",
-                TargetCoins = 14,
-                RoadWidth = 4.6f,
-                ObstacleCount = 12,
-                RoutePoints = new[]
-                {
-                    Point(-14f, -9f),
-                    Point(12f, -9f),
-                    Point(12f, -4f),
-                    Point(-10f, -4f),
-                    Point(-10f, 1f),
-                    Point(14f, 1f),
-                    Point(14f, 7f),
-                    Point(-14f, 7f),
-                    Point(-14f, 11f),
-                    Point(8f, 11f)
-                }
-            },
-            new LevelSpec
-            {
-                DisplayName = "Quarry Figure Eight",
-                TargetCoins = 16,
-                RoadWidth = 4.4f,
-                ObstacleCount = 16,
-                RoutePoints = new[]
-                {
-                    Point(-16f, -2f),
-                    Point(-10f, -10f),
-                    Point(-1f, -6f),
-                    Point(8f, -11f),
-                    Point(16f, -3f),
-                    Point(8f, 4f),
-                    Point(0f, 0f),
-                    Point(-8f, 6f),
-                    Point(-16f, 0f),
-                    Point(-10f, -6f),
-                    Point(0f, 0f),
-                    Point(10f, 7f),
-                    Point(17f, 1f)
-                }
-            },
-            new LevelSpec
-            {
-                DisplayName = "Sunset Slalom",
-                TargetCoins = 18,
-                RoadWidth = 4.2f,
-                ObstacleCount = 20,
-                RoutePoints = new[]
-                {
-                    Point(-20f, -12f),
-                    Point(-13f, -8f),
-                    Point(-18f, -2f),
-                    Point(-10f, 3f),
-                    Point(-14f, 10f),
-                    Point(-4f, 13f),
-                    Point(3f, 7f),
-                    Point(10f, 12f),
-                    Point(18f, 5f),
-                    Point(12f, -2f),
-                    Point(20f, -8f)
-                }
-            },
-            new LevelSpec
-            {
-                DisplayName = "Dockside Spiral",
-                TargetCoins = 20,
-                RoadWidth = 4f,
-                ObstacleCount = 24,
-                RoutePoints = new[]
-                {
-                    Point(-18f, -12f),
-                    Point(-4f, -12f),
-                    Point(8f, -8f),
-                    Point(14f, 2f),
-                    Point(8f, 12f),
-                    Point(-4f, 14f),
-                    Point(-14f, 8f),
-                    Point(-16f, -2f),
-                    Point(-8f, -8f),
-                    Point(2f, -5f),
-                    Point(6f, 2f),
-                    Point(1f, 7f),
-                    Point(-5f, 4f),
-                    Point(-3f, -1f),
-                    Point(5f, -1f)
-                }
-            },
-            new LevelSpec
-            {
-                DisplayName = "Canyon Needles",
-                TargetCoins = 22,
-                RoadWidth = 3.9f,
-                ObstacleCount = 28,
-                RoutePoints = new[]
-                {
-                    Point(-22f, -8f),
-                    Point(-14f, -13f),
-                    Point(-5f, -8f),
-                    Point(-10f, -1f),
-                    Point(-1f, 4f),
-                    Point(-6f, 12f),
-                    Point(5f, 15f),
-                    Point(12f, 8f),
-                    Point(6f, 2f),
-                    Point(16f, -3f),
-                    Point(21f, -11f)
-                }
-            },
-            new LevelSpec
-            {
-                DisplayName = "Ridge Hairpins",
-                TargetCoins = 24,
-                RoadWidth = 3.8f,
-                ObstacleCount = 32,
-                RoutePoints = new[]
-                {
-                    Point(-22f, -14f),
-                    Point(18f, -14f),
-                    Point(18f, -9f),
-                    Point(-18f, -9f),
-                    Point(-18f, -4f),
-                    Point(18f, -4f),
-                    Point(18f, 1f),
-                    Point(-18f, 1f),
-                    Point(-18f, 6f),
-                    Point(18f, 6f),
-                    Point(18f, 12f),
-                    Point(-10f, 12f)
-                }
-            },
-            new LevelSpec
-            {
-                DisplayName = "Industrial Gauntlet",
-                TargetCoins = 26,
-                RoadWidth = 3.6f,
-                ObstacleCount = 36,
-                RoutePoints = new[]
-                {
-                    Point(-23f, -13f),
-                    Point(-12f, -13f),
-                    Point(-8f, -4f),
-                    Point(-18f, -1f),
-                    Point(-20f, 8f),
-                    Point(-8f, 13f),
-                    Point(3f, 8f),
-                    Point(-1f, 0f),
-                    Point(8f, -5f),
-                    Point(18f, -1f),
-                    Point(22f, 8f),
-                    Point(12f, 14f),
-                    Point(1f, 12f),
-                    Point(9f, 3f),
-                    Point(23f, -10f)
-                }
-            },
-            new LevelSpec
-            {
-                DisplayName = "Midnight Pinball",
-                TargetCoins = 30,
-                RoadWidth = 3.4f,
-                ObstacleCount = 42,
-                RoutePoints = new[]
-                {
-                    Point(-24f, -15f),
-                    Point(-14f, -6f),
-                    Point(-22f, 4f),
-                    Point(-10f, 14f),
-                    Point(0f, 6f),
-                    Point(-7f, -2f),
-                    Point(3f, -12f),
-                    Point(14f, -7f),
-                    Point(7f, 2f),
-                    Point(18f, 12f),
-                    Point(25f, 4f),
-                    Point(15f, -4f),
-                    Point(24f, -14f),
-                    Point(5f, -16f),
-                    Point(-8f, -10f),
-                    Point(-24f, -15f)
-                }
-            }
-        };
+        var specs = new LevelSpec[10];
+        for(int i=0;i<specs.Length;i++)
+            specs[i]=new LevelSpec { DisplayName=CourseDifficultyBuilder.Names[i], TargetCoins=10+i*2, RoadWidth=CourseDifficultyBuilder.Widths[i], ObstacleCount=CourseDifficultyBuilder.Obstacles[i], RoutePoints=CourseDifficultyBuilder.Route(i) };
 
         List<BuiltLevel> levels = new List<BuiltLevel>();
         for (int i = 0; i < specs.Length; i++)
@@ -685,15 +496,19 @@ public static class LowPolyDriftPrototypeBuilder
         obstaclesRoot.transform.SetParent(levelRoot.transform);
 
         Transform spawnPoint = CreateLevelSpawnPoint(levelRoot.transform, spec.RoutePoints);
-        for (int i = 0; i < spec.RoutePoints.Length - 1; i++)
+        if (index == 0)
         {
-            CreateRoadSegment($"Road_{i + 1:00}", roadRoot.transform, spec.RoutePoints[i], spec.RoutePoints[i + 1], spec.RoadWidth, roadMaterial, curbMaterial);
+            HarborArtBuilder.Road(roadRoot.transform, spec.RoutePoints, spec.RoadWidth);
+            HarborArtBuilder.Scenery(levelRoot.transform);
         }
+        else CourseDifficultyBuilder.BuildRoad(roadRoot.transform,spec.RoutePoints,spec.RoadWidth,index);
+        HarborArtBuilder.Course(levelRoot.transform, spec.RoutePoints, spec.RoadWidth, index == 0 ? 12 : 10+index, index == 0);
+        CourseDifficultyBuilder.Configure(levelRoot.GetComponent<RaceCourse>(),index);
 
         CreateRouteCoins(spec.RoutePoints, spec.TargetCoins, coinPrefab, coinsRoot.transform);
-        CreateRouteGuides(spec.RoutePoints, spec.TargetCoins, spec.RoadWidth, routeGuideMaterial, checkpointMaterial, guidanceRoot.transform);
+        if (index != 0) CreateRouteGuides(spec.RoutePoints, 0, spec.RoadWidth, routeGuideMaterial, checkpointMaterial, guidanceRoot.transform);
         CreateRouteObstacles(index, spec.RoutePoints, spec.ObstacleCount, spec.RoadWidth, barrierMaterial, coneMaterial, tireMaterial, obstaclesRoot.transform);
-        CreateStartGate(levelRoot.transform, spec.RoutePoints, spec.RoadWidth, curbMaterial);
+
 
         return new BuiltLevel
         {
@@ -842,47 +657,48 @@ public static class LowPolyDriftPrototypeBuilder
         }
 
         float routeLength = GetRouteLength(routePoints);
+        var distances=CourseDifficultyBuilder.ObstacleDistances(routePoints,obstacleCount,10+routeIndex);
         for (int i = 0; i < obstacleCount; i++)
         {
-            float distance = routeLength * ((i + 1.4f) / (obstacleCount + 2.6f));
+            float distance = distances[i];
             SampleRouteFrame(routePoints, distance, out Vector3 routePosition, out Quaternion routeRotation);
 
             Vector3 right = routeRotation * Vector3.right;
             float side = i % 2 == 0 ? 1f : -1f;
 
-            int pattern = (i + routeIndex) % 5;
+            int pattern = routeIndex < 3 ? 1 : (i + routeIndex) % 5;
             if (pattern == 0)
             {
-                Vector3 barrierPosition = routePosition + right * side * (roadWidth * 0.22f) + Vector3.up * 0.33f;
+                Vector3 barrierPosition = routePosition + right * side * (roadWidth * 0.40f) + Vector3.up * 0.33f;
                 GameObject barrier = CreateBox(
                     $"Barrier_{i + 1:00}",
                     parent,
                     barrierPosition,
                     routeRotation,
-                    new Vector3(roadWidth * 0.34f, 0.62f + routeIndex * 0.01f, 0.32f),
+                    new Vector3(roadWidth * 0.18f, 0.62f + routeIndex * 0.01f, 0.32f),
                     barrierMaterial);
                 AttachObstacleFeedback(barrier, 2, new Color(1f, 0.42f, 0.18f), 1.1f);
             }
             else if (pattern == 1 || pattern == 2)
             {
-                Vector3 conePosition = routePosition + right * side * (roadWidth * 0.28f) + Vector3.up * 0.35f;
+                Vector3 conePosition = routePosition + right * side * (roadWidth * 0.45f) + Vector3.up * 0.35f;
                 GameObject cone = CreateTrafficCone($"Cone_{i + 1:00}", parent, conePosition, routeRotation, coneMaterial);
                 AttachObstacleFeedback(cone, 1, new Color(1f, 0.74f, 0.22f), 1.16f);
             }
             else if (pattern == 3)
             {
-                Vector3 tirePosition = routePosition + right * side * (roadWidth * 0.24f) + Vector3.up * 0.18f;
+                Vector3 tirePosition = routePosition + right * side * (roadWidth * 0.42f) + Vector3.up * 0.18f;
                 CreateTireStack($"TireStack_{i + 1:00}", parent, tirePosition, routeRotation, tireMaterial);
             }
             else
             {
-                Vector3 blockPosition = routePosition + right * side * (roadWidth * 0.18f) + Vector3.up * 0.18f;
+                Vector3 blockPosition = routePosition + right * side * (roadWidth * 0.40f) + Vector3.up * 0.18f;
                 GameObject block = CreateBox(
                     $"LowBlock_{i + 1:00}",
                     parent,
                     blockPosition,
                     routeRotation,
-                    new Vector3(roadWidth * 0.26f, 0.32f, 0.85f),
+                    new Vector3(roadWidth * 0.16f, 0.32f, 0.85f),
                     barrierMaterial);
                 AttachObstacleFeedback(block, 1, new Color(1f, 0.55f, 0.24f), 1.12f);
             }
@@ -1023,7 +839,10 @@ public static class LowPolyDriftPrototypeBuilder
         Camera camera = cameraObject.AddComponent<Camera>();
         camera.fieldOfView = 62f;
         camera.nearClipPlane = 0.1f;
-        camera.farClipPlane = 250f;
+        camera.farClipPlane = 600f;
+        camera.clearFlags = CameraClearFlags.SolidColor;
+        camera.backgroundColor = new Color(0.42f,0.62f,0.70f);
+        camera.cullingMask &= ~(1 << 31);
 
         cameraObject.AddComponent<AudioListener>();
         return cameraObject.AddComponent<CameraFollow>();
@@ -1048,37 +867,35 @@ public static class LowPolyDriftPrototypeBuilder
         ui.SpeedText = CreateText("SpeedText", ui.GameplayHudPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -24f), new Vector2(300f, 44f), "0 km/h", 34, TextAnchor.UpperLeft);
         ui.DriftStateText = CreateText("DriftStateText", ui.GameplayHudPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -68f), new Vector2(300f, 34f), "Normal", 24, TextAnchor.UpperLeft);
         ui.GuidanceText = CreateText("GuidanceText", ui.GameplayHudPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -26f), new Vector2(620f, 46f), "Next Coin: ready", 30, TextAnchor.UpperCenter, new Color(0.45f, 0.95f, 1f));
-        ui.DriftScoreText = CreateText("DriftScoreText", ui.GameplayHudPanel.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -132f), new Vector2(620f, 80f), "Drift Score: 0\nCombo x1.0", 24, TextAnchor.UpperRight, new Color(0.92f, 0.96f, 1f));
+        ui.DriftScoreText = CreateText("DriftScoreText", ui.GameplayHudPanel.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -254f), new Vector2(620f, 80f), "Drift Score: 0\nCombo x1.0", 24, TextAnchor.UpperRight, new Color(0.92f, 0.96f, 1f));
         ui.LevelText = CreateText("LevelText", ui.GameplayHudPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -106f), new Vector2(560f, 34f), "Route 1/10", 24, TextAnchor.UpperLeft);
         ui.CoinText = CreateText("CoinText", ui.GameplayHudPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -144f), new Vector2(300f, 34f), "Coins: 0 / 10", 24, TextAnchor.UpperLeft);
         ui.TotalCoinsText = CreateText("TotalCoinsText", ui.GameplayHudPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -182f), new Vector2(360f, 34f), "Total Coins: 0", 24, TextAnchor.UpperLeft);
-        ui.GarageText = CreateText("GarageText", ui.GameplayHudPanel.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f), new Vector2(620f, 110f), "Garage", 22, TextAnchor.UpperRight);
+        ui.GarageText = CreateText("GarageText", ui.GameplayHudPanel.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -128f), new Vector2(620f, 110f), "Garage", 22, TextAnchor.UpperRight);
         ui.MessageText = CreateText("MessageText", ui.GameplayHudPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 160f), new Vector2(820f, 170f), "Collect the coins on the road", 30, TextAnchor.MiddleCenter);
-        ui.GameplayHomeButton = CreateButton("GameplayHomeButton", ui.GameplayHudPanel.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-42f, -42f), new Vector2(150f, 68f), "MENU", 24, new Color(0.22f, 0.25f, 0.34f), Color.white);
+        ui.GameplayHomeButton = CreateButton("GameplayHomeButton", ui.GameplayHudPanel.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-42f, -42f), new Vector2(150f, 68f), "PAUSE", 24, new Color(0.22f, 0.25f, 0.34f), Color.white);
 
-        ui.HomePanel = CreateFullPanel("HomePanel", canvasObject.transform, new Color(0.035f, 0.04f, 0.055f, 0.98f), true, true);
-        CreateRacingBackdrop(ui.HomePanel.transform);
+        ui.HomePanel = CreateFullPanel("HomePanel", canvasObject.transform, new Color(0.035f, 0.055f, 0.075f, 1f), true, true);
         CreateRect("HomeTopRail", ui.HomePanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(1920f, 118f), new Color(0.07f, 0.09f, 0.12f, 0.96f));
-        CreateRect("HomeTopAccent", ui.HomePanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -118f), new Vector2(1920f, 5f), new Color(0.95f, 0.58f, 0.18f));
-        CreateText("GameTitle", ui.HomePanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -145f), new Vector2(900f, 92f), "POLY DRIFT", 72, TextAnchor.MiddleCenter, new Color(0.92f, 0.98f, 1f));
-        CreateText("GameSubtitle", ui.HomePanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -218f), new Vector2(900f, 44f), "arcade low-poly racing", 28, TextAnchor.MiddleCenter, new Color(0.45f, 0.95f, 1f));
-        ui.CoinButton = CreateButton("CoinButton", ui.HomePanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(42f, -28f), new Vector2(280f, 70f), "Coins 0", 30, new Color(0.95f, 0.58f, 0.18f), Color.white);
-        ui.CoinBalanceText = ui.CoinButton.GetComponentInChildren<Text>();
-        ui.SettingsButton = CreateButton("SettingsButton", ui.HomePanel.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-42f, -28f), new Vector2(140f, 70f), "SET", 26, new Color(0.2f, 0.23f, 0.29f), Color.white);
+        CreateText("GameTitle", ui.HomePanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -145f), new Vector2(900f, 92f), "Poly Drift", 72, TextAnchor.MiddleCenter, new Color(0.92f, 0.98f, 1f));
+        ui.CoinButton = CreateButton("CoinButton",ui.HomePanel.transform,new Vector2(0,1),new Vector2(0,1),new Vector2(42,-28),new Vector2(240,70),string.Empty,1,new Color(0.09f,0.16f,0.20f),Color.white);
+        CreateMenuIcon("Coin icon",ui.CoinButton.transform,MenuIcon.Kind.Coin,new Vector2(0,0.5f),new Vector2(36,0),new Vector2(46,46));
+        ui.CoinBalanceText=CreateText("Balance",ui.CoinButton.transform,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(76,0),new Vector2(150,48),"0",30,TextAnchor.MiddleLeft,new Color(1f,0.82f,0.39f));
+        ui.CoinBalanceText.resizeTextForBestFit=true;ui.CoinBalanceText.resizeTextMinSize=18;ui.CoinBalanceText.resizeTextMaxSize=30;
+        ui.SettingsButton = CreateButton("SettingsButton",ui.HomePanel.transform,new Vector2(1,1),new Vector2(1,1),new Vector2(-42,-28),new Vector2(78,70),string.Empty,1,new Color(0.2f,0.23f,0.29f),Color.white);
+        CreateMenuIcon("Settings icon",ui.SettingsButton.transform,MenuIcon.Kind.Settings,new Vector2(0.5f,0.5f),Vector2.zero,new Vector2(46,46));
         ui.SpinButton = CreateButton("SpinButton", ui.HomePanel.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(58f, 105f), new Vector2(230f, 86f), "SPIN", 30, new Color(0.53f, 0.26f, 0.9f), Color.white);
         ui.DailyButton = CreateButton("DailyButton", ui.HomePanel.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-58f, 105f), new Vector2(230f, 86f), "DAILY", 30, new Color(0.08f, 0.56f, 0.62f), Color.white);
         CreateVehicleHero(ui.HomePanel.transform);
-        CreateText("HomeRouteHint", ui.HomePanel.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 332f), new Vector2(820f, 42f), "Collect coins, unlock cars, master all 10 routes", 26, TextAnchor.MiddleCenter, new Color(0.78f, 0.88f, 0.92f));
         ui.LevelButton = CreateButton("LevelButton", ui.HomePanel.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 210f), new Vector2(650f, 108f), "LEVEL SELECT", 42, new Color(0.38f, 0.82f, 0.23f), Color.white);
         ui.HomeLevelText = ui.LevelButton.GetComponentInChildren<Text>();
 
-        ui.LevelSelectPanel = CreateFullPanel("LevelSelectPanel", canvasObject.transform, new Color(0.035f, 0.04f, 0.055f, 0.98f), false, true);
-        CreateRacingBackdrop(ui.LevelSelectPanel.transform);
+        ui.LevelSelectPanel = CreateFullPanel("LevelSelectPanel", canvasObject.transform, new Color(0.035f, 0.055f, 0.075f, 1f), false, true);
         CreateRect("LevelSelectTopRail", ui.LevelSelectPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(1920f, 118f), new Color(0.07f, 0.09f, 0.12f, 0.96f));
-        CreateText("LevelSelectTitle", ui.LevelSelectPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -58f), new Vector2(760f, 76f), "LEVEL SELECT", 56, TextAnchor.MiddleCenter);
+        CreateText("LevelSelectTitle", ui.LevelSelectPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(760f, 65f), "Routes", 46, TextAnchor.MiddleCenter);
         ui.LevelSelectBackButton = CreateButton("LevelSelectBackButton", ui.LevelSelectPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(42f, -28f), new Vector2(150f, 70f), "HOME", 26, new Color(0.2f, 0.23f, 0.29f), Color.white);
-        ui.LevelSelectStatusText = CreateText("LevelSelectStatusText", ui.LevelSelectPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -130f), new Vector2(1000f, 42f), "Choose a route", 26, TextAnchor.MiddleCenter, new Color(0.45f, 0.95f, 1f));
-        CreateText("LevelSelectHint", ui.LevelSelectPanel.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 58f), new Vector2(1050f, 40f), "Finish a route to unlock the next one", 24, TextAnchor.MiddleCenter, new Color(0.78f, 0.88f, 0.92f));
+        ui.LevelSelectStatusText = CreateText("LevelSelectStatusText", ui.LevelSelectPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -130f), new Vector2(1000f, 42f), "", 26, TextAnchor.MiddleCenter, new Color(0.45f, 0.95f, 1f));
+        CreateText("LevelSelectHint", ui.LevelSelectPanel.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 58f), new Vector2(1050f, 40f), "", 24, TextAnchor.MiddleCenter, new Color(0.78f, 0.88f, 0.92f));
 
         ui.LevelButtons = new Button[10];
         ui.LevelTitleTexts = new Text[10];
@@ -1096,32 +913,52 @@ public static class LowPolyDriftPrototypeBuilder
             "Industrial Gauntlet",
             "Midnight Pinball"
         };
-        int[] routeCoinTargets = { 10, 12, 14, 16, 18, 20, 22, 24, 26, 30 };
+        var cardFrame = RoutePreviewBuilder.CardFrame();
         for (int i = 0; i < 10; i++)
         {
-            int column = i % 2;
-            int row = i / 2;
-            float x = column == 0 ? -300f : 300f;
-            float y = -220f - row * 128f;
-            Color accentColor = Color.Lerp(new Color(0.45f, 0.95f, 1f), new Color(0.95f, 0.58f, 0.18f), i / 9f);
-            Button card = CreateButton($"LevelButton_{i + 1:00}", ui.LevelSelectPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(x, y), new Vector2(540f, 106f), string.Empty, 1, new Color(0.09f, 0.14f, 0.2f), Color.white);
+            float x = i % 2 == 0 ? -410f : 410f;
+            Button card = CreateButton($"LevelButton_{i + 1:00}", ui.LevelSelectPanel.transform, new Vector2(0.5f,0.5f), new Vector2(0.5f,0.5f), new Vector2(x,-5), new Vector2(780,590), string.Empty, 1, new Color(0.25f,0.35f,0.4f), Color.white);
             ui.LevelButtons[i] = card;
-            CreateRect($"LevelAccent_{i + 1:00}", card.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0f), new Vector2(12f, 106f), accentColor);
-            CreateText($"LevelNumber_{i + 1:00}", card.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(38f, 14f), new Vector2(82f, 54f), $"{i + 1:00}", 38, TextAnchor.MiddleCenter, accentColor);
-            ui.LevelTitleTexts[i] = CreateText($"LevelTitle_{i + 1:00}", card.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(124f, 20f), new Vector2(360f, 38f), $"Route {i + 1}: {routeNames[i]}", 24, TextAnchor.MiddleLeft);
-            ui.LevelMetaTexts[i] = CreateText($"LevelMeta_{i + 1:00}", card.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(124f, -22f), new Vector2(360f, 32f), $"{routeCoinTargets[i]} coins objective", 20, TextAnchor.MiddleLeft, new Color(0.45f, 0.95f, 1f));
+            card.image.sprite = cardFrame; card.image.type = Image.Type.Sliced;
+            card.gameObject.AddComponent<Mask>().showMaskGraphic = true;
+            var preview = CreateRect("Preview",card.transform,new Vector2(0,1),new Vector2(0,1),new Vector2(6,-6),new Vector2(768,432),Color.white).GetComponent<Image>();
+            preview.raycastTarget = false;
+            var shade = CreateRect("LockedShade",card.transform,new Vector2(0,1),new Vector2(0,1),new Vector2(6,-6),new Vector2(768,432),new Color(0.015f,0.025f,0.04f,0.65f));
+            shade.GetComponent<Image>().raycastTarget = false;
+            var lockIcon = MenuIcon.Attach(shade.transform,MenuIcon.Kind.Lock,118);
+            lockIcon.color = new Color(1f,0.75f,0.25f);
+            CreateRect("Caption",card.transform,new Vector2(0,0),new Vector2(0,0),new Vector2(6,6),new Vector2(768,146),new Color(0.085f,0.12f,0.16f));
+            CreateRect("NameRibbon",card.transform,new Vector2(0,0),new Vector2(0,0),new Vector2(0,80),new Vector2(780,72),new Color(0.86f,0.40f,0.11f));
+            ui.LevelTitleTexts[i] = CreateText($"LevelTitle_{i+1:00}",card.transform,new Vector2(0,0),new Vector2(0,0),new Vector2(28,87),new Vector2(650,58),routeNames[i],34,TextAnchor.MiddleLeft);
+            ui.LevelMetaTexts[i] = CreateText($"LevelMeta_{i+1:00}",card.transform,new Vector2(0,0),new Vector2(0,0),new Vector2(28,22),new Vector2(660,44),"",23,TextAnchor.MiddleLeft,new Color(0.7f,0.8f,0.85f));
+            var number = CreateRect("NumberBadge",card.transform,new Vector2(0,1),new Vector2(0,1),new Vector2(26,-26),new Vector2(74,50),new Color(0.025f,0.045f,0.065f,0.88f));
+            CreateText("Number",number.transform,new Vector2(0.5f,0.5f),new Vector2(0.5f,0.5f),Vector2.zero,new Vector2(74,50),$"{i+1:00}",26,TextAnchor.MiddleCenter);
+            var action = MenuIcon.Attach(card.transform,MenuIcon.Kind.Play,36);
+            action.rectTransform.anchorMin=action.rectTransform.anchorMax=new Vector2(1,0);
+            action.rectTransform.anchoredPosition=new Vector2(-44,116);
+            card.gameObject.AddComponent<IconButtonHint>().description="Start route";
         }
+        ui.PreviousRoutePageButton = CreateButton("PreviousPage",ui.LevelSelectPanel.transform,new Vector2(0.5f,0),new Vector2(0.5f,0.5f),new Vector2(-150,110),new Vector2(72,66),"",1,new Color(0.12f,0.20f,0.25f),Color.white);
+        MenuIcon.Attach(ui.PreviousRoutePageButton.transform,MenuIcon.Kind.ChevronLeft,32);
+        ui.PreviousRoutePageButton.gameObject.AddComponent<IconButtonHint>().description="Previous routes";
+        ui.NextRoutePageButton = CreateButton("NextPage",ui.LevelSelectPanel.transform,new Vector2(0.5f,0),new Vector2(0.5f,0.5f),new Vector2(150,110),new Vector2(72,66),"",1,new Color(0.12f,0.20f,0.25f),Color.white);
+        MenuIcon.Attach(ui.NextRoutePageButton.transform,MenuIcon.Kind.ChevronRight,32);
+        ui.NextRoutePageButton.gameObject.AddComponent<IconButtonHint>().description="Next routes";
+        ui.RoutePageText=CreateText("PageNumber",ui.LevelSelectPanel.transform,new Vector2(0.5f,0),new Vector2(0.5f,0.5f),new Vector2(0,110),new Vector2(160,48),"1 / 5",26,TextAnchor.MiddleCenter,new Color(0.7f,0.8f,0.85f));
 
-        ui.ShopPanel = CreateFullPanel("ShopPanel", canvasObject.transform, new Color(0.035f, 0.04f, 0.055f, 0.98f), false, true);
-        CreateRacingBackdrop(ui.ShopPanel.transform);
+        ui.ShopPanel = CreateFullPanel("ShopPanel", canvasObject.transform, new Color(0.035f, 0.055f, 0.075f, 1f), false, true);
         CreateRect("ShopTopRail", ui.ShopPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(1920f, 118f), new Color(0.07f, 0.09f, 0.12f, 0.96f));
-        CreateText("ShopTitle", ui.ShopPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -58f), new Vector2(700f, 76f), "GARAGE SHOP", 54, TextAnchor.MiddleCenter);
-        ui.ShopBackButton = CreateButton("ShopBackButton", ui.ShopPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(42f, -28f), new Vector2(150f, 70f), "HOME", 26, new Color(0.2f, 0.23f, 0.29f), Color.white);
-        ui.ShopStatusText = CreateText("ShopStatusText", ui.ShopPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -130f), new Vector2(900f, 42f), "Unlock cars with route coins", 26, TextAnchor.MiddleCenter, new Color(0.45f, 0.95f, 1f));
+        CreateText("ShopTitle", ui.ShopPanel.transform, new Vector2(0.5f,1f), new Vector2(0.5f,1f), new Vector2(0,-30), new Vector2(900,65), "Shop", 46, TextAnchor.MiddleCenter);
+        ui.ShopBackButton = CreateButton("ShopBackButton", ui.ShopPanel.transform, new Vector2(0f,1f), new Vector2(0f,1f), new Vector2(42,-30), new Vector2(78,70), string.Empty, 1, new Color(0.16f,0.21f,0.27f), Color.white);
+        CreateHomeIcon(ui.ShopBackButton.transform);
+        var shopWallet = CreateRect("ShopWallet", ui.ShopPanel.transform, new Vector2(1,1), new Vector2(1,1), new Vector2(-42,-28), new Vector2(240,70), new Color(0.09f,0.16f,0.20f));
+        CreateMenuIcon("Coin icon",shopWallet.transform,MenuIcon.Kind.Coin,new Vector2(0,0.5f),new Vector2(36,0),new Vector2(46,46));
+        var shopBalance = CreateText("Balance",shopWallet.transform,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(76,0),new Vector2(150,48),"0",30,TextAnchor.MiddleLeft,new Color(1f,0.82f,0.39f));
+        shopBalance.resizeTextForBestFit=true;shopBalance.resizeTextMinSize=18;shopBalance.resizeTextMaxSize=30;
+        ui.ShopStatusText = CreateText("ShopStatusText",ui.ShopPanel.transform,new Vector2(0.5f,0f),new Vector2(0.5f,0f),new Vector2(0,38),new Vector2(1600,48),"",24,TextAnchor.MiddleCenter,new Color(0.45f,0.95f,1f));
         ui.ShopCarButtons = new Button[4];
         ui.ShopCarTitleTexts = new Text[4];
         ui.ShopCarCostTexts = new Text[4];
-        string[] shopSubtitles = { "Balanced starter tune", "Low grip drift specialist", "Stable obstacle runner", "High speed route hunter" };
         Color[] carColors =
         {
             new Color(0.96f, 0.24f, 0.18f),
@@ -1138,59 +975,62 @@ public static class LowPolyDriftPrototypeBuilder
         };
         for (int i = 0; i < 4; i++)
         {
-            float y = -230f - i * 162f;
-            Button card = CreateButton($"ShopCarButton_{i + 1:00}", ui.ShopPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, y), new Vector2(1140f, 138f), string.Empty, 1, new Color(0.095f, 0.12f, 0.17f), Color.white);
+            float x = i % 2 == 0 ? -410f : 410f;
+            float y = -220f - (i / 2) * 360f;
+            Button card = CreateButton($"ShopCarButton_{i + 1:00}", ui.ShopPanel.transform, new Vector2(0.5f,1f), new Vector2(0.5f,1f), new Vector2(x,y), new Vector2(780,320), string.Empty, 1, new Color(0.095f,0.12f,0.17f), Color.white);
             ui.ShopCarButtons[i] = card;
-            CreateRect($"ShopAccent_{i + 1:00}", card.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0f), new Vector2(12f, 138f), carColors[i]);
-            CreateMiniCar($"ShopCarIcon_{i + 1:00}", card.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(70f, 0f), carColors[i]);
-            ui.ShopCarTitleTexts[i] = CreateText($"ShopCarTitle_{i + 1:00}", card.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(250f, 34f), new Vector2(430f, 46f), "Car", 32, TextAnchor.MiddleLeft);
-            CreateText($"ShopCarSubtitle_{i + 1:00}", card.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(250f, -5f), new Vector2(460f, 34f), shopSubtitles[i], 20, TextAnchor.MiddleLeft, new Color(0.67f, 0.78f, 0.82f));
-            CreateStatBar(card.transform, "SPD", carStats[i, 0], new Vector2(620f, 34f), carColors[i]);
-            CreateStatBar(card.transform, "DRF", carStats[i, 1], new Vector2(620f, -8f), carColors[i]);
-            CreateStatBar(card.transform, "GRP", carStats[i, 2], new Vector2(620f, -50f), carColors[i]);
-            ui.ShopCarCostTexts[i] = CreateText($"ShopCarCost_{i + 1:00}", card.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-42f, -2f), new Vector2(300f, 58f), "Unlock", 26, TextAnchor.MiddleRight, new Color(0.45f, 0.95f, 1f));
+            CreateRect($"ShopAccent_{i+1:00}",card.transform,new Vector2(0,1),new Vector2(0,1),Vector2.zero,new Vector2(780,4),carColors[i]);
+            var picture = CreateRect($"ShopCarImage_{i+1:00}",card.transform,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(18,16),new Vector2(390,234),Color.white).GetComponent<Image>();
+            picture.preserveAspect = true; picture.raycastTarget = false;
+            ui.ShopCarTitleTexts[i] = CreateText($"ShopCarTitle_{i+1:00}",card.transform,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(430,88),new Vector2(326,46),"Car",32,TextAnchor.MiddleLeft);
+            CreateStatBar(card.transform,"Speed",carStats[i,0],new Vector2(430,23),carColors[i]);
+            CreateStatBar(card.transform,"Drift",carStats[i,1],new Vector2(430,-16),carColors[i]);
+            CreateStatBar(card.transform,"Grip",carStats[i,2],new Vector2(430,-55),carColors[i]);
+            ui.ShopCarCostTexts[i] = CreateText($"ShopCarCost_{i+1:00}",card.transform,new Vector2(1,0),new Vector2(1,0),new Vector2(-96,8),new Vector2(120,40),"Unlock",26,TextAnchor.MiddleRight,new Color(0.45f,0.95f,1f));
+            var purchase=MenuIcon.Attach(card.transform,MenuIcon.Kind.Lock,32);purchase.rectTransform.anchorMin=purchase.rectTransform.anchorMax=new Vector2(1,0);purchase.rectTransform.anchoredPosition=new Vector2(-44,29);
+            CreateMenuIcon("PriceCoin",card.transform,MenuIcon.Kind.Coin,new Vector2(1,0),new Vector2(-174,29),new Vector2(28,28));
+            card.gameObject.AddComponent<IconButtonHint>().description="Select vehicle";
         }
 
-        ui.RankPanel = CreateFullPanel("RankPanel", canvasObject.transform, new Color(0.035f, 0.04f, 0.055f, 0.98f), false, true);
-        CreateRacingBackdrop(ui.RankPanel.transform);
+        ui.RankPanel = CreateFullPanel("RankPanel", canvasObject.transform, new Color(0.035f, 0.055f, 0.075f, 1f), false, true);
         CreateRect("RankTopRail", ui.RankPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(1920f, 118f), new Color(0.07f, 0.09f, 0.12f, 0.96f));
-        CreateText("RankTitle", ui.RankPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -58f), new Vector2(700f, 76f), "RANK", 58, TextAnchor.MiddleCenter);
-        ui.RankBackButton = CreateButton("RankBackButton", ui.RankPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(42f, -28f), new Vector2(150f, 70f), "HOME", 26, new Color(0.2f, 0.23f, 0.29f), Color.white);
-        CreateRankPodium(ui.RankPanel.transform);
-        CreateRect("RankListCard", ui.RankPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -520f), new Vector2(1060f, 410f), new Color(0.09f, 0.12f, 0.17f, 0.95f));
-        CreateText("RankHeader", ui.RankPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -542f), new Vector2(960f, 42f), "POS        DRIVER                         BEST ROUTE", 24, TextAnchor.MiddleLeft, new Color(0.95f, 0.58f, 0.18f));
-        for (int i = 0; i < 5; i++)
+        CreateText("RankTitle",ui.RankPanel.transform,new Vector2(0,1),new Vector2(0,1),new Vector2(156,-30),new Vector2(1000,65),"Personal records",46,TextAnchor.MiddleLeft);
+        ui.RankBackButton=CreateButton("RankBackButton",ui.RankPanel.transform,new Vector2(0,1),new Vector2(0,1),new Vector2(42,-30),new Vector2(78,70),string.Empty,1,new Color(0.16f,0.21f,0.27f),Color.white);
+        CreateHomeIcon(ui.RankBackButton.transform);
+        ui.RankListText=CreateText("RecordSummary",ui.RankPanel.transform,new Vector2(0.5f,1),new Vector2(0.5f,1),new Vector2(0,-150),new Vector2(1600,42),"0 / 10 completed",24,TextAnchor.MiddleLeft,new Color(0.58f,0.73f,0.78f));
+        var header=CreateRect("RecordsHeader",ui.RankPanel.transform,new Vector2(0.5f,1),new Vector2(0.5f,1),new Vector2(0,-210),new Vector2(1600,54),new Color(0.07f,0.10f,0.14f));
+        CreateRecordCells(header.transform,true);
+        for(int i=0;i<10;i++)
         {
-            Color rowColor = i == 0 ? new Color(0.12f, 0.22f, 0.24f, 0.95f) : new Color(0.11f, 0.14f, 0.2f, 0.9f);
-            CreateRect($"RankRow_{i + 1:00}", ui.RankPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -608f - i * 62f), new Vector2(960f, 48f), rowColor);
+            var row=CreateRect($"RecordRow_{i+1:00}",ui.RankPanel.transform,new Vector2(0.5f,1),new Vector2(0.5f,1),new Vector2(0,-274-i*68),new Vector2(1600,60),i%2==0?new Color(0.07f,0.10f,0.14f):new Color(0.055f,0.08f,0.11f));
+            CreateRecordCells(row.transform,false);
         }
-        ui.RankListText = CreateText("RankListText", ui.RankPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -590f), new Vector2(900f, 320f), "Rank", 27, TextAnchor.UpperLeft);
 
         CreateBottomNav(ui.HomePanel.transform, out ui.HomeTabButton, out ui.ShopTabButton, out ui.RankTabButton);
 
-        ui.SettingsPopup = CreatePopup("SettingsPopup", canvasObject.transform, "SETTINGS", out ui.CloseSettingsButton);
+        ui.SettingsPopup = CreatePopup("SettingsPopup", canvasObject.transform, "Settings", out ui.CloseSettingsButton);
         ui.MusicToggle = CreateToggle("MusicToggle", ui.SettingsPopup.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 50f), "Music");
         ui.SoundToggle = CreateToggle("SoundToggle", ui.SettingsPopup.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -25f), "Sound");
-        ui.SettingsStatusText = CreateText("SettingsStatusText", ui.SettingsPopup.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -115f), new Vector2(520f, 40f), "Audio settings", 24, TextAnchor.MiddleCenter, new Color(0.45f, 0.95f, 1f));
+        ui.SettingsStatusText = CreateText("SettingsStatusText", ui.SettingsPopup.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -115f), new Vector2(520f, 40f), "", 24, TextAnchor.MiddleCenter, new Color(0.45f, 0.95f, 1f));
 
-        ui.SpinPopup = CreatePopup("SpinPopup", canvasObject.transform, "SPIN WHEEL", out ui.CloseSpinButton);
+        ui.SpinPopup = CreatePopup("SpinPopup", canvasObject.transform, "Spin wheel", out ui.CloseSpinButton);
         CreateText("SpinWheelGraphic", ui.SpinPopup.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 35f), new Vector2(480f, 150f), "10 | 15 | 20 | 25", 38, TextAnchor.MiddleCenter, new Color(0.95f, 0.58f, 0.18f));
         ui.SpinStatusText = CreateText("SpinStatusText", ui.SpinPopup.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -70f), new Vector2(560f, 44f), "Spin once for a coin bonus", 24, TextAnchor.MiddleCenter, new Color(0.45f, 0.95f, 1f));
         ui.SpinRewardButton = CreateButton("SpinRewardButton", ui.SpinPopup.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -145f), new Vector2(300f, 70f), "SPIN", 28, new Color(0.53f, 0.26f, 0.9f), Color.white);
 
-        ui.DailyPopup = CreatePopup("DailyPopup", canvasObject.transform, "DAILY CHECK-IN", out ui.CloseDailyButton);
+        ui.DailyPopup = CreatePopup("DailyPopup", canvasObject.transform, "Daily check-in", out ui.CloseDailyButton);
         ui.DailyStatusText = CreateText("DailyStatusText", ui.DailyPopup.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 25f), new Vector2(620f, 80f), "Claim today's +20 coin reward", 28, TextAnchor.MiddleCenter, new Color(0.45f, 0.95f, 1f));
         ui.ClaimDailyButton = CreateButton("ClaimDailyButton", ui.DailyPopup.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -100f), new Vector2(340f, 74f), "CLAIM", 30, new Color(0.38f, 0.82f, 0.23f), Color.white);
 
-        ui.CompletionPanel = CreateFullPanel("CompletionPanel", canvasObject.transform, new Color(0f, 0f, 0f, 0.62f), false, true);
+        ui.CompletionPanel = CreateFullPanel("CompletionPanel", canvasObject.transform, new Color(0.035f, 0.055f, 0.075f, 1f), false, true);
         GameObject completeCard = CreateRect("CompletionCard", ui.CompletionPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(840f, 620f), new Color(0.075f, 0.1f, 0.15f, 0.98f));
         CreateRect("CompletionAccent", completeCard.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), Vector2.zero, new Vector2(840f, 7f), new Color(0.95f, 0.58f, 0.18f));
-        ui.CompletionTitleText = CreateText("CompletionTitleText", completeCard.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -58f), new Vector2(760f, 76f), "ROUTE COMPLETE", 46, TextAnchor.MiddleCenter, new Color(0.92f, 0.98f, 1f));
+        ui.CompletionTitleText = CreateText("CompletionTitleText", completeCard.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -58f), new Vector2(760f, 76f), "Route complete", 46, TextAnchor.MiddleCenter, new Color(0.92f, 0.98f, 1f));
         ui.CompletionStatsText = CreateText("CompletionStatsText", completeCard.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 58f), new Vector2(680f, 230f), "Stats", 28, TextAnchor.MiddleCenter, new Color(0.78f, 0.88f, 0.92f));
         ui.CompletionBestText = CreateText("CompletionBestText", completeCard.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -112f), new Vector2(720f, 54f), "Best", 24, TextAnchor.MiddleCenter, new Color(0.45f, 0.95f, 1f));
-        ui.CompletionNextButton = CreateButton("CompletionNextButton", completeCard.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-220f, 36f), new Vector2(190f, 70f), "NEXT", 26, new Color(0.38f, 0.82f, 0.23f), Color.white);
+        ui.CompletionNextButton = CreateButton("CompletionNextButton", completeCard.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-140f, 36f), new Vector2(190f, 70f), "NEXT", 26, new Color(0.38f, 0.82f, 0.23f), Color.white);
         ui.CompletionReplayButton = CreateButton("CompletionReplayButton", completeCard.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 36f), new Vector2(190f, 70f), "REPLAY", 26, new Color(0.1f, 0.58f, 0.75f), Color.white);
-        ui.CompletionLevelSelectButton = CreateButton("CompletionLevelSelectButton", completeCard.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(220f, 36f), new Vector2(190f, 70f), "ROUTES", 26, new Color(0.53f, 0.26f, 0.9f), Color.white);
+        ui.CompletionLevelSelectButton = CreateButton("CompletionLevelSelectButton", completeCard.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(140f, 36f), new Vector2(190f, 70f), "ROUTES", 26, new Color(0.53f, 0.26f, 0.9f), Color.white);
         ui.CompletionHomeButton = CreateButton("CompletionHomeButton", completeCard.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f), new Vector2(120f, 58f), "HOME", 22, new Color(0.22f, 0.25f, 0.34f), Color.white);
 
         GameObject transitionFade = CreateFullPanel("TransitionFade", canvasObject.transform, new Color(0f, 0f, 0f, 0.72f), true, true);
@@ -1198,7 +1038,41 @@ public static class LowPolyDriftPrototypeBuilder
         ui.TransitionFadeGroup.alpha = 0f;
         ui.TransitionFadeGroup.blocksRaycasts = false;
 
+        ui.CoinButton.gameObject.AddComponent<IconButtonHint>().description="Garage";
+        ui.SettingsButton.gameObject.AddComponent<IconButtonHint>().description="Settings";
+        PolishHud(ui);
+        RacingMenuThemeBuilder.Apply(canvasObject.transform);
         return ui;
+    }
+
+    private static void PolishHud(UiRefs ui)
+    {
+        ui.GarageText.gameObject.SetActive(false);
+        ui.TotalCoinsText.gameObject.SetActive(false);
+        Layout(ui.SpeedText,new Vector2(0,0),new Vector2(0,0),new Vector2(44,70),new Vector2(280,65),48,TextAnchor.LowerLeft);
+        Layout(ui.DriftStateText,new Vector2(0,0),new Vector2(0,0),new Vector2(46,40),new Vector2(300,32),20,TextAnchor.LowerLeft);
+        Layout(ui.LevelText,new Vector2(0,1),new Vector2(0,1),new Vector2(36,-30),new Vector2(350,36),22,TextAnchor.UpperLeft);
+        Layout(ui.CoinText,new Vector2(0,1),new Vector2(0,1),new Vector2(36,-70),new Vector2(280,30),18,TextAnchor.UpperLeft);
+        Layout(ui.GuidanceText,new Vector2(0.5f,1),new Vector2(0.5f,1),new Vector2(0,-28),new Vector2(640,92),25,TextAnchor.UpperCenter);
+        Layout(ui.DriftScoreText,new Vector2(1,0),new Vector2(1,0),new Vector2(-40,60),new Vector2(380,92),28,TextAnchor.LowerRight);
+        Layout(ui.MessageText,new Vector2(0.5f,0.5f),new Vector2(0.5f,0.5f),new Vector2(0,130),new Vector2(820,140),38,TextAnchor.MiddleCenter);
+        CreateText("Controls",ui.GameplayHudPanel.transform,new Vector2(0.5f,0),new Vector2(0.5f,0),new Vector2(0,20),new Vector2(950,28),"W/S  DRIVE     A/D  STEER     SPACE  DRIFT     SHIFT  BRAKE     R  RECOVER",18,TextAnchor.MiddleCenter,new Color(0.8f,0.89f,0.90f));
+        foreach (var text in ui.GameplayHudPanel.GetComponentsInChildren<Text>(true))
+        {
+            text.raycastTarget=false;
+            var shadow=text.gameObject.AddComponent<Shadow>();shadow.effectColor=new Color(0,0,0,0.75f);shadow.effectDistance=new Vector2(1,-2);
+        }
+        foreach (var button in ui.HomePanel.GetComponentsInChildren<Button>(true))
+        {
+            button.GetComponent<Image>().color = button == ui.LevelButton ? new Color(0.10f,0.64f,0.60f) : new Color(0.09f,0.16f,0.20f);
+        }
+        ui.SpinButton.gameObject.SetActive(false);
+        ui.DailyButton.gameObject.SetActive(false);
+    }
+
+    private static void Layout(Text text,Vector2 anchor,Vector2 pivot,Vector2 position,Vector2 size,int font,TextAnchor align)
+    {
+        var rect=text.rectTransform;rect.anchorMin=rect.anchorMax=anchor;rect.pivot=pivot;rect.anchoredPosition=position;rect.sizeDelta=size;text.fontSize=font;text.alignment=align;
     }
 
     private static void CreateRacingBackdrop(Transform parent)
@@ -1220,16 +1094,11 @@ public static class LowPolyDriftPrototypeBuilder
 
     private static void CreateVehicleHero(Transform parent)
     {
-        GameObject hero = CreateRect("VehicleHeroPanel", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 20f), new Vector2(860f, 330f), new Color(0.08f, 0.12f, 0.17f, 0.92f));
-        CreateRect("VehicleHeroAccent", hero.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(860f, 6f), new Color(0.45f, 0.95f, 1f));
-        CreateText("VehicleHeroTitle", hero.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(700f, 42f), "SELECTED GARAGE", 24, TextAnchor.MiddleCenter, new Color(0.95f, 0.58f, 0.18f));
-
-        GameObject pad = CreateRect("VehiclePad", hero.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -22f), new Vector2(620f, 170f), new Color(0.045f, 0.055f, 0.07f, 0.95f));
-        CreateRect("PadLineA", pad.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-160f, 0f), new Vector2(16f, 150f), new Color(0.45f, 0.95f, 1f, 0.34f));
-        CreateRect("PadLineB", pad.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(160f, 0f), new Vector2(16f, 150f), new Color(0.95f, 0.58f, 0.18f, 0.34f));
-        CreateMiniCar("HeroCar", hero.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -25f), new Color(0.13f, 0.68f, 0.72f), 1.8f);
-
-        CreateText("VehicleRoster", hero.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(780f, 42f), "Starter | Drift | Rally | Speed", 24, TextAnchor.MiddleCenter, new Color(0.78f, 0.88f, 0.92f));
+        GameObject hero = CreateRect("VehicleHeroPanel", parent, new Vector2(0.5f,0.5f),new Vector2(0.5f,0.5f),new Vector2(0,40),new Vector2(1000,390),Color.clear);
+        var image = new GameObject("Live vehicle",typeof(RectTransform),typeof(RawImage),typeof(GaragePreview));
+        image.transform.SetParent(hero.transform,false);
+        var rect=(RectTransform)image.transform;rect.anchorMin=Vector2.zero;rect.anchorMax=Vector2.one;rect.sizeDelta=Vector2.zero;
+        image.GetComponent<RawImage>().raycastTarget=false;
     }
 
     private static void CreateMiniCar(string name, Transform parent, Vector2 anchor, Vector2 pivot, Vector2 anchoredPosition, Color bodyColor)
@@ -1257,17 +1126,42 @@ public static class LowPolyDriftPrototypeBuilder
         CreateRect("Highlight", root.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(6f * scale, 29f * scale), new Vector2(130f * scale, 6f * scale), Color.Lerp(bodyColor, Color.white, 0.34f));
     }
 
+    private static void CreateMenuIcon(string name,Transform parent,MenuIcon.Kind kind,Vector2 anchor,Vector2 position,Vector2 size)
+    {
+        var go=new GameObject(name,typeof(RectTransform),typeof(MenuIcon));go.transform.SetParent(parent,false);
+        var rect=(RectTransform)go.transform;rect.anchorMin=rect.anchorMax=anchor;rect.pivot=new Vector2(0.5f,0.5f);rect.anchoredPosition=position;rect.sizeDelta=size;
+        var icon=go.GetComponent<MenuIcon>();icon.icon=kind;icon.color=new Color(0.9f,0.96f,1f);icon.raycastTarget=false;
+    }
+
+    private static void CreateRecordCells(Transform parent,bool header)
+    {
+        string[] names={"Route","Time","Drift","Status"};
+        string[] labels={"Route","Best time","Best drift","Status"};
+        float[] x={28,770,1080,1340};float[] widths={720,250,220,230};
+        for(int i=0;i<4;i++)
+        {
+            var text=CreateText(names[i],parent,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(x[i],0),new Vector2(widths[i],48),header?labels[i]:"—",header?20:26,TextAnchor.MiddleLeft,header?new Color(0.50f,0.65f,0.71f):new Color(0.86f,0.91f,0.94f));
+            text.raycastTarget=false;
+        }
+    }
+
+    private static void CreateHomeIcon(Transform parent)
+    {
+        MenuIcon.Attach(parent,MenuIcon.Kind.Home,38);
+        parent.gameObject.AddComponent<IconButtonHint>().description="Home";
+    }
+
     private static void CreateStatBar(Transform parent, string label, float value, Vector2 anchoredPosition, Color fillColor)
     {
         CreateText($"{label}_Label", parent, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), anchoredPosition, new Vector2(70f, 26f), label, 17, TextAnchor.MiddleLeft, new Color(0.78f, 0.88f, 0.92f));
-        CreateRect($"{label}_Track", parent, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), anchoredPosition + new Vector2(58f, 0f), new Vector2(210f, 16f), new Color(0.035f, 0.045f, 0.06f));
-        CreateRect($"{label}_Fill", parent, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), anchoredPosition + new Vector2(58f, 0f), new Vector2(210f * Mathf.Clamp01(value), 16f), fillColor);
+        CreateRect($"{label}_Track", parent, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), anchoredPosition + new Vector2(82f, 0f), new Vector2(210f, 16f), new Color(0.035f, 0.045f, 0.06f));
+        CreateRect($"{label}_Fill", parent, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), anchoredPosition + new Vector2(82f, 0f), new Vector2(210f * Mathf.Clamp01(value), 16f), fillColor);
     }
 
     private static void CreateRankPodium(Transform parent)
     {
         GameObject podium = CreateRect("RankPodium", parent, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -170f), new Vector2(920f, 250f), new Color(0.08f, 0.12f, 0.17f, 0.92f));
-        CreateText("PodiumTitle", podium.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -28f), new Vector2(760f, 38f), "ROUTE LEADERS", 24, TextAnchor.MiddleCenter, new Color(0.95f, 0.58f, 0.18f));
+        CreateText("PodiumTitle", podium.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -28f), new Vector2(760f, 38f), "Route leaders", 24, TextAnchor.MiddleCenter, new Color(0.95f, 0.58f, 0.18f));
         CreateRect("PodiumSecond", podium.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-190f, 18f), new Vector2(170f, 116f), new Color(0.38f, 0.46f, 0.54f));
         CreateRect("PodiumFirst", podium.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 18f), new Vector2(190f, 156f), new Color(0.95f, 0.58f, 0.18f));
         CreateRect("PodiumThird", podium.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(200f, 18f), new Vector2(170f, 92f), new Color(0.58f, 0.32f, 0.18f));
@@ -1278,15 +1172,15 @@ public static class LowPolyDriftPrototypeBuilder
 
     private static void CreateBottomNav(Transform parent, out Button homeButton, out Button shopButton, out Button rankButton)
     {
-        GameObject nav = CreateRect("BottomNav", parent, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 0f), new Vector2(1100f, 128f), new Color(0.07f, 0.1f, 0.18f, 0.95f));
+        GameObject nav = CreateRect("BottomNav", parent, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 0f), new Vector2(620f, 128f), new Color(0.07f, 0.1f, 0.18f, 0.95f));
         homeButton = CreateButton("HomeTabButton", nav.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 0f), new Vector2(260f, 82f), "HOME", 30, new Color(0.1f, 0.58f, 0.75f), Color.white);
-        shopButton = CreateButton("ShopTabButton", nav.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-360f, 0f), new Vector2(260f, 82f), "SHOP", 30, new Color(0.22f, 0.25f, 0.34f), Color.white);
-        rankButton = CreateButton("RankTabButton", nav.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(360f, 0f), new Vector2(260f, 82f), "RANK", 30, new Color(0.22f, 0.25f, 0.34f), Color.white);
+        shopButton = CreateButton("ShopTabButton", nav.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-170f, 0f), new Vector2(260f, 82f), "SHOP", 30, new Color(0.22f, 0.25f, 0.34f), Color.white);
+        rankButton = CreateButton("RankTabButton", nav.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(170f, 0f), new Vector2(260f, 82f), "RANK", 30, new Color(0.22f, 0.25f, 0.34f), Color.white);
     }
 
     private static GameObject CreatePopup(string name, Transform parent, string title, out Button closeButton)
     {
-        GameObject popupRoot = CreateFullPanel(name, parent, new Color(0f, 0f, 0f, 0.58f), false, true);
+        GameObject popupRoot = CreateFullPanel(name, parent, new Color(0.035f,0.055f,0.075f,1f), false, true);
         CreateRect("Dialog", popupRoot.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(720f, 520f), new Color(0.08f, 0.11f, 0.18f, 0.98f));
         CreateText("Title", popupRoot.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 185f), new Vector2(600f, 70f), title, 42, TextAnchor.MiddleCenter);
         closeButton = CreateButton("CloseButton", popupRoot.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(285f, 185f), new Vector2(82f, 62f), "X", 30, new Color(0.22f, 0.25f, 0.34f), Color.white);
@@ -1330,36 +1224,53 @@ public static class LowPolyDriftPrototypeBuilder
 
     private static Button CreateButton(string name, Transform parent, Vector2 anchor, Vector2 pivot, Vector2 anchoredPosition, Vector2 size, string label, int fontSize, Color backgroundColor, Color textColor)
     {
+        MenuIcon.Kind? symbol=label switch
+        {
+            "HOME"=>MenuIcon.Kind.Home, "SHOP"=>MenuIcon.Kind.Garage, "RANK"=>MenuIcon.Kind.Trophy,
+            "LEVEL SELECT"=>MenuIcon.Kind.Play, "PAUSE"=>MenuIcon.Kind.Pause, "NEXT"=>MenuIcon.Kind.Next,
+            "REPLAY"=>MenuIcon.Kind.Replay, "ROUTES"=>MenuIcon.Kind.Routes, "X"=>MenuIcon.Kind.Close,
+            "SPIN"=>MenuIcon.Kind.Gift, "DAILY"=>MenuIcon.Kind.Gift, "CLAIM"=>MenuIcon.Kind.Gift, _=>null
+        };
+        if(symbol.HasValue)backgroundColor=label=="LEVEL SELECT"||label=="NEXT"?new Color(0.10f,0.64f,0.60f):new Color(0.09f,0.16f,0.20f);
+        if(symbol.HasValue)size=label=="LEVEL SELECT"?new Vector2(168,104):name.Contains("TabButton")?new Vector2(120,82):label=="X"?new Vector2(62,62):new Vector2(88,76);
         GameObject buttonObject = CreateRect(name, parent, anchor, pivot, anchoredPosition, size, backgroundColor);
         Button button = buttonObject.AddComponent<Button>();
         button.targetGraphic = buttonObject.GetComponent<Image>();
 
         ColorBlock colors = button.colors;
-        colors.normalColor = backgroundColor;
-        colors.highlightedColor = Color.Lerp(backgroundColor, Color.white, 0.18f);
-        colors.pressedColor = Color.Lerp(backgroundColor, Color.black, 0.18f);
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(1.15f,1.15f,1.15f);
+        colors.pressedColor = new Color(0.75f,0.75f,0.75f);
         colors.selectedColor = colors.highlightedColor;
         button.colors = colors;
 
-        if (!string.IsNullOrEmpty(label))
+        if(symbol.HasValue)
         {
-            CreateText("Label", buttonObject.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, size, label, fontSize, TextAnchor.MiddleCenter, textColor);
+            MenuIcon.Attach(button.transform,symbol.Value,label=="LEVEL SELECT"?48:38);
+            string hint=label switch { "LEVEL SELECT"=>"Choose a route", "SHOP"=>"Garage", "RANK"=>"Personal records", "X"=>"Close", "NEXT"=>"Next route", "REPLAY"=>"Retry route", "ROUTES"=>"Choose a route", "PAUSE"=>"Pause", "HOME"=>"Home", "CLAIM"=>"Claim reward", _=>"Claim reward" };
+            buttonObject.AddComponent<IconButtonHint>().description=hint;
         }
+        else if(!string.IsNullOrEmpty(label))CreateText("Label",buttonObject.transform,new Vector2(0.5f,0.5f),new Vector2(0.5f,0.5f),Vector2.zero,size,label,fontSize,TextAnchor.MiddleCenter,textColor);
 
         return button;
     }
 
     private static Toggle CreateToggle(string name, Transform parent, Vector2 anchor, Vector2 pivot, Vector2 anchoredPosition, string label)
     {
-        GameObject toggleObject = CreateRect(name, parent, anchor, pivot, anchoredPosition, new Vector2(420f, 58f), new Color(0.13f, 0.17f, 0.25f, 1f));
+        GameObject toggleObject = CreateRect(name, parent, anchor, pivot, anchoredPosition, new Vector2(420f, 64f), new Color(0.13f, 0.17f, 0.25f, 1f));
         Toggle toggle = toggleObject.AddComponent<Toggle>();
         toggle.targetGraphic = toggleObject.GetComponent<Image>();
 
-        GameObject checkmark = CreateRect("Checkmark", toggleObject.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(16f, 0f), new Vector2(46f, 38f), new Color(0.38f, 0.82f, 0.23f));
-        toggle.graphic = checkmark.GetComponent<Image>();
+        CreateRect("ToggleTrack",toggleObject.transform,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(350,0),new Vector2(42,36),new Color(0.04f,0.07f,0.09f));
+        var checkmark=new GameObject("Checkmark",typeof(RectTransform),typeof(MenuIcon));checkmark.transform.SetParent(toggleObject.transform,false);
+        var checkRect=(RectTransform)checkmark.transform;checkRect.anchorMin=checkRect.anchorMax=new Vector2(0,0.5f);checkRect.pivot=new Vector2(0,0.5f);checkRect.anchoredPosition=new Vector2(356,0);checkRect.sizeDelta=new Vector2(30,30);
+        var check=checkmark.GetComponent<MenuIcon>();check.icon=MenuIcon.Kind.Check;check.color=new Color(0.30f,0.90f,0.76f);check.raycastTarget=false;toggle.graphic=check;
         toggle.isOn = true;
 
-        CreateText("Label", toggleObject.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(84f, 0f), new Vector2(300f, 48f), label, 28, TextAnchor.MiddleLeft);
+        CreateMenuIcon("Audio icon",toggleObject.transform,label=="Music"?MenuIcon.Kind.Music:MenuIcon.Kind.Sound,new Vector2(0,0.5f),new Vector2(42,0),new Vector2(38,38));
+        CreateText("AudioSetting",toggleObject.transform,new Vector2(0,0.5f),new Vector2(0,0.5f),new Vector2(82,0),new Vector2(240,48),label,26,TextAnchor.MiddleLeft);
+        toggleObject.AddComponent<IconButtonHint>().description=label=="Music"?"Toggle music":"Toggle sound effects";
+
         return toggle;
     }
 
@@ -1401,6 +1312,7 @@ public static class LowPolyDriftPrototypeBuilder
 
         Text text = textObject.AddComponent<Text>();
         text.text = value;
+        text.raycastTarget = false;
         text.fontSize = fontSize;
         text.alignment = alignment;
         text.color = color;
@@ -1481,7 +1393,7 @@ public static class LowPolyDriftPrototypeBuilder
         SerializedObject serializedGarage = new SerializedObject(garage);
         SerializedProperty carsProperty = serializedGarage.FindProperty("cars");
         string[] ids = { "starter", "drift", "rally", "speed" };
-        string[] names = { "Starter Car", "Drift Car", "Rally Car", "Speed Car" };
+        string[] names = { "Sport Sedan", "Drift Hatch", "Rally SUV", "Track Racer" };
         carsProperty.arraySize = carPrefabs.Length;
 
         for (int i = 0; i < carPrefabs.Length; i++)
@@ -1531,6 +1443,9 @@ public static class LowPolyDriftPrototypeBuilder
         serializedMenu.FindProperty("rankTabButton").objectReferenceValue = ui.RankTabButton;
         serializedMenu.FindProperty("levelSelectStatusText").objectReferenceValue = ui.LevelSelectStatusText;
         serializedMenu.FindProperty("levelSelectBackButton").objectReferenceValue = ui.LevelSelectBackButton;
+        serializedMenu.FindProperty("previousRoutePageButton").objectReferenceValue = ui.PreviousRoutePageButton;
+        serializedMenu.FindProperty("nextRoutePageButton").objectReferenceValue = ui.NextRoutePageButton;
+        serializedMenu.FindProperty("routePageText").objectReferenceValue = ui.RoutePageText;
         serializedMenu.FindProperty("completionTitleText").objectReferenceValue = ui.CompletionTitleText;
         serializedMenu.FindProperty("completionStatsText").objectReferenceValue = ui.CompletionStatsText;
         serializedMenu.FindProperty("completionBestText").objectReferenceValue = ui.CompletionBestText;
@@ -1599,7 +1514,11 @@ public static class LowPolyDriftPrototypeBuilder
         GameObject lightObject = new GameObject("Directional Light");
         Light light = lightObject.AddComponent<Light>();
         light.type = LightType.Directional;
-        light.intensity = 1.4f;
+        light.intensity = 1.7f;
+        light.color = new Color(1f,0.88f,0.72f);
+        light.shadows = LightShadows.Soft;
+        light.shadowStrength = 0.8f;
+        light.cullingMask &= ~(1 << 31);
         lightObject.transform.rotation = Quaternion.Euler(50f, -35f, 0f);
     }
 }

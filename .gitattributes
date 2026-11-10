@@ -1,0 +1,2 @@
+# Keep imported 3D models byte-for-byte, including ASCII FBX assets.
+*.fbx binary
